@@ -1,0 +1,9 @@
+# pf anchor "gamesdb": only Cloudflare's edge may reach the public port.
+# install-system.sh fills in __PORT__ and places this at /etc/pf.anchors/gamesdb,
+# referenced from /etc/pf.gamesdb.conf. The table file is written by
+# cloudflare-ips.sh (IPv4 and IPv6 ranges) and is root-owned on purpose: the
+# service user must not be able to widen it.
+table <cloudflare> persist file "/etc/pf.anchors/gamesdb.cloudflare"
+pass in quick on lo0 proto tcp from any to any port __PORT__
+pass in quick proto tcp from <cloudflare> to any port __PORT__ flags S/SA keep state
+block drop in quick proto tcp from any to any port __PORT__

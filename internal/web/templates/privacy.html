@@ -1,0 +1,37 @@
+{{define "content"}}
+<article class="prose">
+  <h1>Privacy</h1>
+  <p>This page explains what the UTM Database keeps about you, who can see it, and how to get it back or remove it. It covers this site only; the UTM app and getutm.app have their own <a href="https://getutm.app/privacy/">privacy policy</a>.</p>
+
+  <h2>Browsing</h2>
+  <p>You can read everything on this site without an account. Public pages set no cookies. The server keeps short-lived access logs, including your IP address and the pages and searches you request, to keep the site running and to deal with abuse.</p>
+
+  <h2>Signing in</h2>
+  <p>Signing in uses a one-time code sent to your email address. <strong>Your email address is not stored.</strong> Once the code has been sent, the site keeps only a one-way, keyed fingerprint of the address to recognise you next time. The fingerprint cannot be turned back into the address, is never written to logs, and is not shared with anyone. Because of this the site cannot email you for any reason other than sign-in, and signing in with a different address creates a separate account.</p>
+  <p>Your account holds the display name you choose, the times of your last sign-in and last data export, and that fingerprint. A session cookie keeps you signed in for up to 30 days; it is the only cookie the site sets. The IP address of a sign-in request is kept with the one-time code until the code expires.</p>
+
+  <h2>What you submit</h2>
+  <p>Reports, comments, +1s and stars are public and shown with your display name, as are the setup details you enter with a report (UTM version, guest system, graphics backend, and the optional macOS version and hardware fields).</p>
+  <p>With each report and comment the site also records the IP address and browser identifier of the submission. They are never shown and are used only to limit abuse. Submissions are checked by the Akismet spam service (see below); those it rejects are kept in a private log for maintainers to review.</p>
+
+  <h2>Attachments</h2>
+  <p>Files attached to reports are <strong>private</strong>. Other users cannot see them or tell that a report has any. Only you, the maintainers and the Auto-Triage agent can access them. The site may delete attachments after a retention period, so keep your own copy of anything you need. The export described below is the only way to download them again.</p>
+
+  <h2>Auto-Triage</h2>
+  <p>The Auto-Triage agent reads reports, comments and attachments to reproduce and fix issues, and may reply in the comments on your report. Donation requests (which account you gifted a game to, or a demo link) are visible only to the maintainers.</p>
+
+  <h2>Your data</h2>
+  <p><strong>Export.</strong> From your account page you can download everything the site holds about you as a ZIP archive, including your attachments. Exports are available once a day, and files uploaded in the last two days are included in a later export rather than the current one.</p>
+  <p><strong>Deleting.</strong> You can edit or delete your own reports and delete your own comments. A report that others have commented on, or that is more than a day old, is removed through a request that a maintainer reviews. From your account page you can delete every attachment you uploaded, or delete your account. Deleting your account removes everything you could have deleted yourself; reports that had passed the point of direct deletion are kept so the discussion on them stays readable, shown as written by "Deleted user" and with their attachments removed. The maintainers can still tell which deleted account those reports belonged to, so that abuse cannot be hidden by deleting an account. These actions take effect immediately and cannot be undone.</p>
+
+  <h2>Who else sees your data</h2>
+  <ul>
+    <li><a href="https://www.cloudflare.com">Cloudflare</a> delivers this site. Every request passes through it, including the sign-in form, so Cloudflare sees your IP address, the pages you load and the address you sign in with, under its own <a href="https://www.cloudflare.com/privacypolicy/">privacy policy</a>.</li>
+    <li>The email service that delivers sign-in codes sees the address each code is sent to.</li>
+    <li><a href="https://akismet.com">Akismet</a> receives the text, IP address and browser identifier of each report and comment to check for spam.</li>
+    <li><a href="https://www.igdb.com">IGDB.com</a> supplies game titles, descriptions, cover art and store links. Nothing about you is sent to IGDB.</li>
+    <li>Fonts and icons are loaded from Google Fonts and cdnjs, which see your IP address when serving those files.</li>
+  </ul>
+
+</article>
+{{end}}

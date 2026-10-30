@@ -1,0 +1,25 @@
+{{define "content"}}
+<article class="prose">
+  <h1>About</h1>
+  <p>This site collects community reports about how PC games run inside <a href="https://getutm.app">UTM</a>.</p>
+
+  <h2>How a game's status is decided</h2>
+  <p>Each report carries a rating and the UTM version it was tested on. A game's status is taken from the reports on the <strong>newest UTM version</strong> that has any reports. Each report is one vote, and every +1 on it adds another, so a report that many people agree with outweighs several lone reports. The rating with the most votes wins and ties go to the most recent report. A single report on a newer version overrides everything on older ones.</p>
+  <ul>
+    <li><span class="status status-gray">Unknown</span> — not enough information.</li>
+    <li><span class="status status-red">Does not launch</span> — the game never reaches a playable state.</li>
+    <li><span class="status status-yellow">In-game issues</span> — it runs, but with crashes, glitches or performance problems.</li>
+    <li><span class="status status-green">Playable</span> — runs well enough to enjoy.</li>
+    <li><span class="status status-gold">Plays to the end</span> — someone completed the whole game without issues.</li>
+  </ul>
+
+  <h2>Auto-Triage</h2>
+  <p>Games marked <em>Auto-Triage available</em> are handed to an automated agent that reproduces reported issues in UTM on a real test machine and attempts a fix. <a href="/triage">Read how the process works.</a></p>
+
+  <h2>Data sources</h2>
+  <p>Game titles, descriptions, cover art and storefront links come from <a href="https://www.igdb.com">IGDB.com</a>. Only games released on PC are listed.</p>
+
+  <h2>Privacy</h2>
+  <p>What this site stores about you, who can see attachments, and how to delete your data are covered on the <a href="/privacy">privacy page</a>.</p>
+</article>
+{{end}}

@@ -1,0 +1,182 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{if .Title}}{{.Title}} · {{end}}UTM Database</title>
+  <meta name="description" content="{{if .Description}}{{.Description}}{{else}}Community compatibility database for running PC games in UTM.{{end}}">
+  {{if .NoIndex}}<meta name="robots" content="noindex">{{end}}
+  {{if .Canonical}}<link rel="canonical" href="{{.Canonical}}">{{end}}
+  <meta name="theme-color" content="#5080e4">
+  <meta property="og:title" content="{{if .Title}}{{.Title}} · {{end}}UTM Database">
+  <meta property="og:type" content="website">
+  {{if .Canonical}}<meta property="og:url" content="{{.Canonical}}">{{end}}
+  <link rel="icon" type="image/png" sizes="32x32" href="https://getutm.app/assets/img/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="128x128" href="https://getutm.app/assets/img/favicon-128.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://getutm.app/assets/img/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@600;700;800&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/fontawesome.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/brands.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/solid.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+  <link rel="stylesheet" href="{{asset "css/main.css"}}">
+</head>
+<body class="{{.BodyClass}}">
+  <header class="site-header">
+    <a class="brand" href="/">
+      <img src="https://getutm.app/assets/img/appicon.png" alt="" width="36" height="36">
+      <span>UTM</span><span class="brand-sub">Database</span>
+    </a>
+    <nav class="site-nav" aria-label="Primary">
+      <a class="nav-utm" href="https://getutm.app">UTM</a>
+      <span class="nav-user" id="nav-user">{{if .User}}<a href="/account" title="Account">{{.User.DisplayName}}</a>{{else}}<a href="/login">Sign in</a>{{end}}</span>
+      <a class="nav-download" href="/reports/new">Submit report</a>
+    </nav>
+  </header>
+  <main>
+    {{if .Flash}}<div class="page" style="padding-bottom:0"><div class="notice notice-ok">{{.Flash}}</div></div>{{end}}
+    {{template "content" .}}
+  </main>
+  <footer class="site-footer">
+    <nav class="footer-links" aria-label="Footer">
+      <a href="https://getutm.app">UTM</a>
+      <a href="/about">About</a>
+      <a href="/triage">Auto-Triage</a>
+      <a href="/privacy">Privacy</a>
+    </nav>
+    <div class="footer-meta">
+      <div class="footer-social">
+        <a href="https://twitter.com/UTMapp" aria-label="Twitter"><i class="fab fa-twitter"></i></a>
+        <a href="https://github.com/utmapp" aria-label="GitHub"><i class="fab fa-github"></i></a>
+        <a href="https://discord.gg/UV2RUgD" aria-label="Discord"><i class="fab fa-discord"></i></a>
+        <a href="https://www.youtube.com/channel/UCAxyxZ_OLu817FzQnfyLgoQ" aria-label="YouTube"><i class="fab fa-youtube"></i></a>
+      </div>
+      <span>&copy; {{year}} Turing Software, LLC · <span class="footer-attrib">Game data from <a href="https://www.igdb.com">IGDB.com</a></span></span>
+    </div>
+  </footer>
+  <script src="{{asset "js/me.js"}}" defer></script>
+  {{block "scripts" .}}{{end}}
+</body>
+</html>{{end}}
+
+{{define "status_badge"}}<span class="status status-{{ratingColor .}}">{{ratingLabel .}}</span>{{end}}
+
+{{define "triage_badge"}}<a class="triage{{if .TriageAvailable}} is-available{{end}}" href="/triage" title="How Auto-Triage works"><i class="fas fa-robot"></i> Auto-Triage {{if .TriageAvailable}}available{{else}}unavailable{{end}}</a>{{end}}
+
+{{define "game_card"}}<a class="game-card" href="{{.Path}}">
+  <div class="cover">{{if .CoverSmall}}<img src="/covers/{{.CoverSmall}}" alt="" loading="lazy" width="72" height="96">{{else}}<i class="fas fa-gamepad"></i>{{end}}</div>
+  <div>
+    <h3>{{.Name}}{{if .Year}} <span class="faint" style="font-weight:500">({{.Year}})</span>{{end}}</h3>
+    {{template "status_badge" .Status}}
+    <div class="meta">
+      <span title="Reports"><i class="fas fa-file-lines"></i>{{.ReportCount}}</span>
+      <span title="Stars"><i class="fas fa-star"></i><span data-star-count="{{.ID}}">{{.StarCount}}</span></span>
+      {{if .TriageAvailable}}<span title="Auto-Triage available"><i class="fas fa-robot"></i>Auto-Triage</span>{{end}}
+      {{if .StatusVersion}}<span title="Status based on this UTM version">UTM {{.StatusVersion.Label}}</span>{{end}}
+    </div>
+  </div>
+</a>{{end}}
+
+{{define "config_line"}}<div class="config-line">
+  <span title="UTM version"><i class="fas fa-cube"></i>UTM {{.Version.Label}}</span>
+  <span title="Guest OS"><i class="fas fa-desktop"></i>{{.GuestOSLabel}}</span>
+  {{if .GraphicsLabel}}<span title="Graphics backend"><i class="fas fa-layer-group"></i>{{.GraphicsLabel}}</span>{{end}}
+  {{if .HostLabel}}<span title="Host"><i class="fab fa-apple"></i>{{.HostLabel}}</span>{{end}}
+</div>{{end}}
+
+{{define "report_card"}}<article class="report{{if eq .Rating "gold"}} is-gold{{end}}" id="report-{{.ID}}" data-author="{{if .Anonymized}}0{{else}}{{.UserID}}{{end}}">
+  <div class="report-head">
+    {{template "status_badge" .Rating}}
+    <span class="who"><strong>{{.Author}}</strong></span>
+    <time datetime="{{isodate .CreatedAt}}">{{date .CreatedAt}}</time>
+    {{if .EditedAt}}<span class="edited">(edited)</span>{{end}}
+    {{if .TriageStatus}}<span class="triage-status triage-{{triageColor .TriageStatus}}" title="Auto-Triage status"><i class="fas fa-robot"></i> {{triageLabel .TriageStatus}}</span>{{end}}
+  </div>
+  {{template "config_line" .Config}}
+  {{if eq .Rating "gold"}}<p class="md">Played through to the end without issues.</p>{{else if .IssueType}}
+    {{if ne .IssueType "unknown"}}<h4>Issue: {{issueLabel .IssueType}}</h4>{{if .Description}}<div class="md">{{md .Description}}</div>{{end}}
+      {{if .Repro}}<h4>Steps to reproduce</h4><div class="md">{{md .Repro}}</div>{{end}}
+      {{if .WineSameIssue}}<p class="small muted" style="margin-top:12px"><i class="fas fa-wine-glass"></i> {{wineLabel .WineSameIssue}}</p>{{end}}
+    {{else}}<p class="md faint">No specific issue described.</p>{{end}}
+  {{end}}
+  <div class="report-foot">
+    <form method="post" action="/reports/{{.ID}}/plus-one" data-toggle="plusone" data-id="{{.ID}}">
+      <button class="plusone" type="submit" data-plusone-report="{{.ID}}" title="I have the same experience"><span class="plusone-label">+1</span><span class="plusone-count" data-plusone-count="{{.ID}}">{{.PlusOneCount}}</span></button>
+    </form>
+    <a href="{{.Path}}#comments"><i class="fas fa-comment"></i> {{.CommentCount}} {{plural .CommentCount "comment" "comments"}}</a>
+    <span class="spacer"></span>
+    <a href="/reports/{{.ID}}/edit" data-edit-link hidden><i class="fas fa-pen"></i> Edit</a>
+    <a href="{{.Path}}">Permalink</a>
+  </div>
+</article>{{end}}
+
+{{define "config_fields"}}
+{{if .Locked}}
+<div class="grid-2">
+  <div class="field locked"><span class="label">UTM version</span><input type="hidden" name="utm_version_id" value="{{.Values.utm_version_id}}"><div class="input is-static">{{.VersionLabel}}</div></div>
+  <div class="field locked"><span class="label">Guest operating system</span><input type="hidden" name="guest_os" value="{{.Values.guest_os}}"><div class="input is-static">{{osLabel .Values.guest_os}}</div></div>
+</div>
+{{else}}
+<div class="field{{if index .Errors "utm_version_id"}} has-error{{end}}">
+  <label for="{{.Prefix}}utm_version_id">UTM version</label>
+  <select class="input" id="{{.Prefix}}utm_version_id" name="utm_version_id" required>
+    <option value="">Choose the version you tested with…</option>
+    {{range .Versions}}<option value="{{.ID}}"{{if eq (printf "%d" .ID) $.Values.utm_version_id}} selected{{end}}>{{.Label}}</option>{{end}}
+  </select>
+  <span class="hint">Find it in <strong>UTM → About UTM</strong> on macOS, or <strong>Settings → About</strong> on iOS. If your version is missing, update UTM first.</span>
+  {{with index .Errors "utm_version_id"}}<span class="error">{{.}}</span>{{end}}
+</div>
+<div data-when="version">
+<div class="field{{if index .Errors "guest_os"}} has-error{{end}}">
+  <span class="label">Guest operating system</span>
+  <div class="choices-inline">
+    {{range $v := list "windows" "linux" "other"}}<label class="choice"><input type="radio" name="guest_os" value="{{$v}}"{{if eq $.Values.guest_os $v}} checked{{end}} required> {{osLabel $v}}</label>{{end}}
+  </div>
+  {{with index .Errors "guest_os"}}<span class="error">{{.}}</span>{{end}}
+</div>
+</div>
+{{end}}
+<div data-when="linux">
+  <div class="grid-2">
+    <div class="field{{if index .Errors "linux_distro"}} has-error{{end}}"><label for="{{.Prefix}}linux_distro">Distribution</label><input class="input" id="{{.Prefix}}linux_distro" name="linux_distro" value="{{.Values.linux_distro}}" placeholder="e.g. Ubuntu" maxlength="80">{{with index .Errors "linux_distro"}}<span class="error">{{.}}</span>{{end}}</div>
+    <div class="field{{if index .Errors "linux_version"}} has-error{{end}}"><label for="{{.Prefix}}linux_version">Distribution version <span class="faint">(optional)</span></label><input class="input" id="{{.Prefix}}linux_version" name="linux_version" value="{{.Values.linux_version}}" placeholder="e.g. 24.04" maxlength="40">{{with index .Errors "linux_version"}}<span class="error">{{.}}</span>{{end}}</div>
+  </div>
+</div>
+<div data-when="other">
+  <div class="field{{if index .Errors "other_os_name"}} has-error{{end}}"><label for="{{.Prefix}}other_os_name">Operating system name</label><input class="input" id="{{.Prefix}}other_os_name" name="other_os_name" value="{{.Values.other_os_name}}" placeholder="e.g. FreeBSD 14" maxlength="80">{{with index .Errors "other_os_name"}}<span class="error">{{.}}</span>{{end}}</div>
+</div>
+<div data-when="setup">
+<div class="field{{if index .Errors "graphics_backend"}} has-error{{end}}">
+  <span class="label">Graphics backend <span class="faint">(optional)</span></span>
+  <div class="choices-inline">
+    {{range $v := list "unknown" "dxmt" "d3dmetal"}}<label class="choice"><input type="radio" name="graphics_backend" value="{{$v}}"{{if eq $.Values.graphics_backend $v}} checked{{end}}> {{gfxLabel $v}}</label>{{end}}
+    {{range $v := list "moltenvk" "kosmickrisp" "angle_metal" "angle_opengl" "core_gl"}}<span data-when="not-windows"><label class="choice"><input type="radio" name="graphics_backend" value="{{$v}}"{{if eq $.Values.graphics_backend $v}} checked{{end}}> {{gfxLabel $v}}</label></span>{{end}}
+  </div>
+  <span class="hint">See <a href="https://docs.getutm.app/preferences/macos/#qemu-graphics-acceleration" target="_blank" rel="noopener">UTM documentation</a> for details.</span>
+  {{with index .Errors "graphics_backend"}}<span class="error">{{.}}</span>{{end}}
+</div>
+<div class="field{{if index .Errors "macos_version"}} has-error{{end}}">
+  <label for="{{.Prefix}}macos_version">macOS version <span class="faint">(optional)</span></label>
+  <input class="input" id="{{.Prefix}}macos_version" name="macos_version" value="{{.Values.macos_version}}" placeholder="e.g. 15.1" maxlength="40">
+  <span class="hint">Apple menu → <strong>About This Mac</strong>. On iPad: Settings → General → About.</span>
+  {{with index .Errors "macos_version"}}<span class="error">{{.}}</span>{{end}}
+</div>
+<div class="grid-2">
+  <div class="field"><label for="{{.Prefix}}device_model">Device model <span class="faint">(optional)</span></label><input class="input" id="{{.Prefix}}device_model" name="device_model" value="{{.Values.device_model}}" placeholder="e.g. MacBook Pro 14-inch 2023" maxlength="80"></div>
+  <div class="field"><label for="{{.Prefix}}chip">Chip <span class="faint">(optional)</span></label><input class="input" id="{{.Prefix}}chip" name="chip" value="{{.Values.chip}}" placeholder="e.g. M3 Pro" maxlength="40"></div>
+</div>
+<div class="field{{if index .Errors "ram_gb"}} has-error{{end}}" style="max-width:240px">
+  <label for="{{.Prefix}}ram_gb">Memory (GB) <span class="faint">(optional)</span></label>
+  <input class="input" id="{{.Prefix}}ram_gb" name="ram_gb" value="{{.Values.ram_gb}}" inputmode="numeric" placeholder="e.g. 32" maxlength="5">
+  {{with index .Errors "ram_gb"}}<span class="error">{{.}}</span>{{end}}
+</div>
+</div>
+{{end}}
+
+{{define "mdedit"}}<div class="mdedit" data-mode="write">
+  <div class="tabs"><button type="button" class="is-active" data-mode="write">Write</button><button type="button" data-mode="preview">Preview</button></div>
+  <textarea class="textarea" id="{{.ID}}" name="{{.Name}}" placeholder="{{.Placeholder}}" maxlength="{{.Max}}"{{if .Required}} required{{end}}>{{.Value}}</textarea>
+  <div class="preview md" aria-live="polite"></div>
+  <span class="hint">Markdown is supported (bold, lists, code blocks, tables). Links and HTML are not allowed.</span>
+</div>{{end}}

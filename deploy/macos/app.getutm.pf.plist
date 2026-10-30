@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Enables pf at boot with /etc/pf.gamesdb.conf, which includes Apple's
+     /etc/pf.conf and adds the gamesdb anchor. Installed by install-system.sh. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>app.getutm.pf</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/sbin/pfctl</string>
+    <string>-e</string>
+    <string>-f</string>
+    <string>/etc/pf.gamesdb.conf</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+</dict>
+</plist>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- LaunchAgent for the UTM Database server; install.sh fills in __PREFIX__
+     and places it in the service user's ~/Library/LaunchAgents. It runs in
+     that user's login session (the machine auto-logs in) and reads .env from
+     its working directory. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>app.getutm.db</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>__PREFIX__/gamesdb</string>
+    <string>serve</string>
+  </array>
+  <key>WorkingDirectory</key><string>__PREFIX__</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>StandardOutPath</key><string>__PREFIX__/log/gamesdb.log</string>
+  <key>StandardErrorPath</key><string>__PREFIX__/log/gamesdb.log</string>
+  <key>SoftResourceLimits</key><dict><key>NumberOfFiles</key><integer>4096</integer></dict>
+</dict>
+</plist>

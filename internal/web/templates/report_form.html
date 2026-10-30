@@ -1,0 +1,159 @@
+{{define "content"}}
+<section class="page">
+  {{if .Game}}<p class="small" style="margin-bottom:14px">{{if .Editing}}<a href="{{reportPath .Game.ID .Game.Slug .ReportID}}">‹ Back to report</a>{{else if .Game.Active}}<a href="{{.Game.Path}}">‹ {{.Game.Name}}</a>{{else}}<a href="/reports/new">‹ Pick a different game</a>{{end}}</p>{{end}}
+  <div class="page-head">
+    <h1>{{if .Editing}}Edit report{{else}}Submit a report{{end}}</h1>
+    <p class="lede">Tell other players how a game runs in UTM. One report per distinct issue, please: if you ran into several unrelated problems, file a separate report for each.</p>
+  </div>
+  {{if .Error}}<div class="notice notice-error" style="margin-bottom:20px">{{.Error}}{{if .ErrorList}}<ul>{{range .ErrorList}}<li><code>{{.}}</code></li>{{end}}</ul>{{end}}</div>{{end}}
+
+  {{if not .Game}}
+  <div class="form">
+    <div class="card">
+      <h2><span class="step-num">1</span>Pick the game</h2>
+      <form method="get" action="/reports/new">
+        <div class="field">
+          <label for="q">Game title</label>
+          <input class="input" id="q" name="q" value="{{.Query}}" placeholder="Start typing a title…" autocomplete="off" autofocus data-picker-input>
+          <span class="hint">Only games released on PC are listed. Data from IGDB.</span>
+        </div>
+        <noscript><button class="btn btn-primary btn-sm" type="submit">Search</button></noscript>
+      </form>
+      <div class="picker-results" data-picker-results>
+        {{if .Query}}{{if .Hits}}{{range .Hits}}<a href="/reports/new?game={{.ID}}"><span>{{.Name}}{{if .Active}} <span class="pill">has reports</span>{{end}}</span><span class="sub">{{if .Year}}{{.Year}}{{end}}{{if .GameType}} · {{.GameType}}{{end}}</span></a>{{end}}{{else}}<p class="faint small">No games found for “{{.Query}}”.</p>{{end}}{{end}}
+      </div>
+    </div>
+  </div>
+  {{else}}
+  <form class="form" method="post" action="{{.Action}}" enctype="multipart/form-data" data-report-form>
+    <input type="hidden" name="game_id" value="{{.Game.ID}}">
+    <div class="card">
+      <h2><span class="step-num">1</span>Game</h2>
+      <div class="selected-game">
+        <div class="cover">{{if .CoverURL}}<img src="{{.CoverURL}}" alt="" width="96" height="128">{{else}}<i class="fas fa-gamepad"></i>{{end}}</div>
+        <div>
+          <h3>{{.Game.Name}}{{if .Game.Year}} <span class="faint" style="font-weight:500">({{.Game.Year}})</span>{{end}}</h3>
+          {{if .Game.Summary}}<p class="summary">{{.Game.Summary}}</p>{{else}}<p class="summary faint">No description available.</p>{{end}}
+          {{if not .Editing}}<p class="small" style="margin-top:8px"><a href="/reports/new">Not the right game? Search again</a></p>{{end}}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><span class="step-num">2</span>Rating</h2>
+      {{if .Editing}}
+      <div class="field locked">
+        <input type="hidden" name="rating" value="{{.Values.rating}}">
+        {{if eq .Values.rating "gold"}}<input type="hidden" name="completion_confirmed" value="1">{{end}}
+        <div>{{template "status_badge" .Values.rating}}</div>
+        <span class="hint">The rating, UTM version and guest operating system of a report can't be changed. For a different result, submit a new report.</span>
+      </div>
+      {{else}}
+      <div class="field{{if index .Errors "rating"}} has-error{{end}}">
+        <div class="choices">
+          {{range .Ratings}}<label class="choice"><input type="radio" name="rating" value="{{.}}" required{{if eq (print .) $.Values.rating}} checked{{end}}> <span>{{template "status_badge" .}}<small>{{ratingHelp .}}</small></span></label>{{end}}
+        </div>
+        {{with index .Errors "rating"}}<span class="error">{{.}}</span>{{end}}
+      </div>
+      {{end}}
+      {{if not .Editing}}<div data-when="gold">
+        <div class="field{{if index .Errors "completion_confirmed"}} has-error{{end}}">
+          <label class="choice"><input type="checkbox" name="completion_confirmed" value="1"{{if .Values.completion_confirmed}} checked{{end}}> <span>I confirm I played this game from start to finish in UTM without running into issues.<small>Positive reports are just as important as issues.</small></span></label>
+          {{with index .Errors "completion_confirmed"}}<span class="error">{{.}}</span>{{end}}
+        </div>
+      </div>{{end}}
+    </div>
+
+    <div data-when="rating">
+      <div class="card">
+        <h2><span class="step-num">3</span>Your setup</h2>
+        {{template "config_fields" (dict "Prefix" "" "Versions" .Versions "Values" .Values "Errors" .Errors "Locked" .Editing "VersionLabel" .LockedVersion)}}
+      </div>
+    </div>
+
+    <div data-when="step4">
+      <div class="card">
+        <h2><span class="step-num">4</span>Issue</h2>
+        <div class="field{{if index .Errors "issue_type"}} has-error{{end}}">
+          <span class="label">What kind of issue did you see? <span class="faint">(optional)</span></span>
+          <div class="choices-inline">
+            {{range $v := list "unknown" "hang_crash" "graphics" "performance" "workaround" "other"}}<label class="choice"><input type="radio" name="issue_type" value="{{$v}}"{{if eq $.Values.issue_type $v}} checked{{end}}> {{issueLabel $v}}</label>{{end}}
+          </div>
+          <span class="hint">Experienced several distinct issues? Submit one report per issue so each can be tracked and triaged on its own.</span>
+          {{with index .Errors "issue_type"}}<span class="error">{{.}}</span>{{end}}
+        </div>
+        <div data-when="issue">
+          <div class="field{{if index .Errors "description"}} has-error{{end}}">
+            <label for="description">Additional details <span class="faint" data-details-optional>(optional)</span></label>
+            {{template "mdedit" (dict "ID" "description" "Name" "description" "Value" .Values.description "Placeholder" "What happens, when, and what you expected instead…" "Max" 20000 "Required" false)}}
+            {{with index .Errors "description"}}<span class="error">{{.}}</span>{{end}}
+          </div>
+          <div data-when="described">
+          <div data-when="repro">
+          <div class="field{{if index .Errors "repro"}} has-error{{end}}">
+            <label for="repro">Steps to reproduce <span class="faint">(optional)</span></label>
+            {{template "mdedit" (dict "ID" "repro" "Name" "repro" "Value" .Values.repro "Placeholder" "1. Launch the game\n2. …" "Max" 20000 "Required" false)}}
+            {{with index .Errors "repro"}}<span class="error">{{.}}</span>{{end}}
+          </div>
+          </div>
+          <div class="field{{if index .Errors "wine_same_issue"}} has-error{{end}}">
+            <span class="label">Does the same issue occur under CrossOver or Wine? <span class="faint">(optional)</span></span>
+            <div class="choices-inline">
+              {{range $v := list "unknown" "no" "yes"}}<label class="choice"><input type="radio" name="wine_same_issue" value="{{$v}}"{{if eq $.Values.wine_same_issue $v}} checked{{end}}> {{wineShort $v}}</label>{{end}}
+            </div>
+            {{with index .Errors "wine_same_issue"}}<span class="error">{{.}}</span>{{end}}
+          </div>
+          <div class="field{{if index .Errors "attachments"}} has-error{{end}}">
+            <label for="attachments">Attachments <span class="faint">(optional)</span></label>
+            {{if .ExistingAttachments}}<div class="attach-list" style="margin-bottom:8px">{{range .ExistingAttachments}}<span><i class="fas fa-paperclip"></i> {{.Filename}} ({{filesize .Size}}) <label class="choice" style="display:inline;padding:0 0 0 6px"><input type="checkbox" name="remove_attachment" value="{{.ID}}"> remove</label></span>{{end}}</div>{{end}}
+            <input class="input" type="file" id="attachments" name="attachments" multiple accept="{{.Accept}}" data-max-file="{{.MaxFileBytes}}" data-max-total="{{.MaxReportBytes}}" data-max-count="{{.MaxFiles}}">
+            <div class="file-list" data-file-list></div>
+            <span class="hint">Screenshots, recordings, logs or configs: {{.AcceptedLabel}}. Up to {{.MaxFiles}} files, {{filesize .MaxFileBytes}} each, {{filesize .MaxReportBytes}} per report. <strong>Uploads are private</strong>: other users cannot see them, only you, the maintainers and the triage agent can. They may not be retained indefinitely.</span>
+            {{with index .Errors "attachments"}}<span class="error">{{.}}</span>{{end}}
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
+    <div data-when="submit">
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">{{if .Editing}}Save changes{{else}}Submit report{{end}}</button>
+        <span class="small faint">Submissions are moderated before they appear.</span>
+      </div>
+    </div>
+  </form>
+  {{if .Editing}}
+  {{if .CanDelete}}
+  <details class="danger-zone form">
+    <summary>Delete this report</summary>
+    <div class="card">
+      <p class="muted" style="margin-bottom:14px">This removes the report and its attachments from the site. It cannot be undone.</p>
+      <form method="post" action="/reports/{{.ReportID}}/delete">
+        <input type="hidden" name="confirm" value="1">
+        <button class="btn btn-danger" type="submit"><i class="fas fa-trash"></i> Yes, delete my report</button>
+      </form>
+    </div>
+  </details>
+  {{else if .DeletionPending}}
+  <p class="small muted" style="margin-top:40px"><i class="fas fa-hourglass-half"></i> A deletion request for this report is pending review.</p>
+  {{else}}
+  <details class="danger-zone form">
+    <summary>Request deletion</summary>
+    <div class="card">
+      <p class="muted" style="margin-bottom:14px">A maintainer will review your request and remove the report.</p>
+      <form method="post" action="/reports/{{.ReportID}}/delete-request">
+        <input type="hidden" name="confirm" value="1">
+        <div class="field" style="flex:1 1 100%"><label for="reason">Comment <span class="faint">(optional)</span></label><textarea class="textarea" id="reason" name="reason" maxlength="2000" style="min-height:80px" placeholder="Why should this report be removed?"></textarea></div>
+        <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
+        <button class="btn btn-danger" type="submit"><i class="fas fa-paper-plane"></i> Request deletion</button>
+      </form>
+    </div>
+  </details>
+  {{end}}
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+{{define "scripts"}}<script src="{{asset "js/search.js"}}" defer></script><script src="{{asset "js/form.js"}}" defer></script><script src="{{asset "js/preview.js"}}" defer></script>{{end}}

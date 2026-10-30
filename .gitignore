@@ -1,0 +1,17 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# runtime data (sqlite db, uploads, covers)
+/data/
+
+# build output
+/gamesdb
+/bin/
+/dist/
+
+# editor / os
+.DS_Store
+.idea/
+.vscode/

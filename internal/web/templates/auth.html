@@ -1,0 +1,42 @@
+{{define "content"}}
+<section class="page">
+  <div class="form" style="max-width:520px;margin:0 auto">
+    {{if eq .Mode "login"}}
+    <div class="card">
+      <h2>Sign in</h2>
+      <p class="muted" style="margin-bottom:18px">Enter your email and we'll email you a one-time sign-in code. No password needed. Your email is never stored or shown.</p>
+      {{if .Error}}<div class="notice notice-error" style="margin-bottom:16px">{{.Error}}</div>{{end}}
+      <form method="post" action="/login" data-login-form data-form-token="{{.FormToken}}" data-pow-bits="{{.PoWBits}}" data-min-age-ms="{{.MinAgeMs}}">
+        <input type="hidden" name="next" value="{{.Next}}">
+        <input type="hidden" name="form_token" value="{{.FormToken}}">
+        <input type="hidden" name="pow_nonce" value="">
+        <div class="field"><label for="email">Email</label><input class="input" type="email" id="email" name="email" value="{{.Email}}" required autofocus autocomplete="email"></div>
+        <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
+        <div class="form-actions"><button class="btn btn-primary" type="submit">Send code</button> <span class="small faint" data-pow-status></span></div>
+        <noscript><p class="small muted" style="margin-top:12px">JavaScript is required to sign in.</p></noscript>
+      </form>
+    </div>
+    {{else if eq .Mode "code"}}
+    <div class="card">
+      <h2>Check your email</h2>
+      <p class="muted" style="margin-bottom:18px">If <strong>{{.Email}}</strong> can receive mail, a {{codeLength}}-digit code is on its way. Enter it here within {{.TTLMinutes}} minutes.</p>
+      {{if .Error}}<div class="notice notice-error" style="margin-bottom:16px">{{.Error}}</div>{{end}}
+      <form method="post" action="/login/code">
+        <input type="hidden" name="next" value="{{.Next}}">
+        <input type="hidden" name="email" value="{{.Email}}">
+        <div class="field"><label for="code">Sign-in code</label><input class="input input-code" type="text" id="code" name="code" inputmode="numeric" pattern="[0-9 ]*" maxlength="{{codeLength}}" autocomplete="one-time-code" required autofocus></div>
+        <div class="form-actions"><button class="btn btn-primary" type="submit">Sign in</button></div>
+      </form>
+      <p class="small faint" style="margin-top:14px">Didn't get it? Check your spam folder, or <a href="/login{{if ne .Next "/"}}?next={{.Next}}{{end}}">request another code</a>.</p>
+    </div>
+    {{else if eq .Mode "error"}}
+    <div class="card">
+      <h2>Sign-in failed</h2>
+      <p class="muted">{{.Error}}</p>
+      <p style="margin-top:16px"><a class="btn btn-primary" href="/login">Back to sign in</a></p>
+    </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+{{define "scripts"}}<script src="{{asset "js/login.js"}}" defer></script>{{end}}

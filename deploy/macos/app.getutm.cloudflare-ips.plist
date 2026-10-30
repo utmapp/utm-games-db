@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Refreshes the Cloudflare IP allowlist used by pf on the first of each
+     month at 04:00 (a calendar job runs at the next boot if it was missed,
+     unlike StartInterval). Installed to /Library/LaunchDaemons/ by install.sh. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>app.getutm.cloudflare-ips</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/local/sbin/cloudflare-ips.sh</string></array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Day</key><integer>1</integer><key>Hour</key><integer>4</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardErrorPath</key><string>/var/log/cloudflare-ips.log</string>
+</dict>
+</plist>

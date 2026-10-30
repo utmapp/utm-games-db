@@ -1,0 +1,42 @@
+{{define "content"}}
+<section class="page">
+  <div class="page-head">
+    <h1>Game compatibility</h1>
+    <p class="lede">How well PC games run inside UTM, reported by the community. Can't find a game? <a href="/reports/new">Submit the first report</a>.</p>
+  </div>
+  <div class="toolbar">
+    <form method="get" action="/">
+      <div class="search">
+        <input type="search" name="q" value="{{.Query}}" placeholder="Search games with reports…" aria-label="Search games" autocomplete="off">
+        <button type="submit"><i class="fas fa-magnifying-glass"></i></button>
+      </div>
+      <select class="select" name="status" aria-label="Filter by status">
+        <option value="">Any status</option>
+        {{range .Ratings}}<option value="{{.}}"{{if eq (print .) $.Status}} selected{{end}}>{{ratingLabel .}}</option>{{end}}
+      </select>
+      <select class="select" name="sort" aria-label="Sort">
+        <option value="recent"{{if eq .Sort "recent"}} selected{{end}}>Recently updated</option>
+        <option value="stars"{{if eq .Sort "stars"}} selected{{end}}>Most stars</option>
+        <option value="reports"{{if eq .Sort "reports"}} selected{{end}}>Most reports</option>
+        <option value="name"{{if eq .Sort "name"}} selected{{end}}>Name</option>
+      </select>
+      <noscript><button class="btn btn-white btn-sm" type="submit">Apply</button></noscript>
+    </form>
+    <span class="stats">{{.Stats.Games}} {{plural .Stats.Games "game" "games"}} · {{.Stats.Reports}} {{plural .Stats.Reports "report" "reports"}}</span>
+  </div>
+  {{if .Games}}
+  <div class="game-grid">{{range .Games}}{{template "game_card" .}}{{end}}</div>
+  {{if gt .Pages 1}}<nav class="pager" aria-label="Pages">
+    {{if gt .PageNum 1}}<a href="{{pageURL $ (sub .PageNum 1)}}">‹ Prev</a>{{end}}
+    {{range $p := seq 1 .Pages}}{{if eq $p $.PageNum}}<span class="current">{{$p}}</span>{{else if or (le (abs (sub $p $.PageNum)) 2) (eq $p 1) (eq $p $.Pages)}}<a href="{{pageURL $ $p}}">{{$p}}</a>{{end}}{{end}}
+    {{if lt .PageNum .Pages}}<a href="{{pageURL $ (add .PageNum 1)}}">Next ›</a>{{end}}
+  </nav>{{end}}
+  {{else}}
+  <div class="empty">
+    {{if .Query}}<p>No games with reports match “{{.Query}}”.</p><p style="margin-top:12px"><a class="btn btn-primary" href="/reports/new?q={{.Query}}">Submit a report for it</a></p>
+    {{else}}<p>No reports yet. Be the first to <a href="/reports/new">submit one</a>.</p>{{end}}
+  </div>
+  {{end}}
+</section>
+{{end}}
+{{define "scripts"}}<script src="{{asset "js/list.js"}}" defer></script>{{end}}

@@ -1,0 +1,41 @@
+{{define "content"}}
+<section class="page">
+  <p class="small" style="margin-bottom:14px"><a href="{{.Game.Path}}">‹ {{.Game.Name}}</a></p>
+  <div class="page-head">
+    <h1>Donate a Copy of {{.Game.Name}}</h1>
+    <p class="lede">Auto-Triage can figure out game issues and develop driver fixes automatically. In order to test this game, we need a license to run it. You can gift this game to our test account on a supported storefront or direct us to a free demo. The bot will automatically run on all unresolved reports once the game is installed. Please understand that enabling Auto-Triage does not guarantee that a fix will be found.</p>
+  </div>
+  {{if .Done}}
+  <div class="card" style="max-width:720px"><h2>Thanks!</h2><p class="muted">Your request has been recorded. Once the game is available on a supported account, the Auto-Triage badge on the <a href="{{.Game.Path}}">game page</a> will switch on.</p></div>
+  {{else}}
+  {{if .Error}}<div class="notice notice-error" style="margin-bottom:20px">{{.Error}}</div>{{end}}
+  {{if .User}}
+  <form class="form" method="post" action="/games/{{.Game.ID}}/donate" data-triage-form>
+    <div class="card">
+      <h2>How can we get the game?</h2>
+      <div class="choices">
+        {{if .GiftOptions}}<label class="choice"><input type="radio" name="kind" value="gift"{{if eq .Values.kind "gift"}} checked{{end}} required> <span>I can gift a copy<small>Gift the game to one of our storefront accounts.</small></span></label>{{end}}
+        <label class="choice"><input type="radio" name="kind" value="demo"{{if or (eq .Values.kind "demo") (not .GiftOptions)}} checked{{end}} required> <span>There is a free demo<small>Provide a link to a demo from a storefront or to download directly.</small></span></label>
+      </div>
+      {{if not .GiftOptions}}<p class="muted small" style="margin-top:10px">This game is not listed on a supported storefront. You can submit a link to a free demo.</p>{{end}}
+      <div style="margin-top:18px">
+        {{if .GiftOptions}}<div class="field" data-when="gift"><span class="label">Which supported storefront will you gift from?</span>
+          <div class="choices">{{range .GiftOptions}}<label class="choice"><input type="radio" name="storefront" value="{{.Storefront}}"{{if eq $.Values.storefront .Storefront}} checked{{end}}> <span>{{.Label}}{{if .URL}}<small><a href="{{.URL}}" rel="noopener" target="_blank">{{.URL}}</a></small>{{end}}</span></label>{{end}}</div>
+          {{range .GiftOptions}}<div class="gift-steps" data-store="{{.Storefront}}" hidden>
+            <a class="btn btn-primary" href="{{.StoreURL}}" target="_blank" rel="noopener">Open on {{.StoreLabel}} <i class="fas fa-arrow-up-right-from-square"></i></a>
+            {{if .Email}}<p class="small">Gift email: <strong>{{.Email}}</strong></p>{{end}}
+            <p class="small">{{.Instructions}}</p>
+          </div>{{end}}
+        </div>{{end}}
+        <div class="field{{if index .Errors "demo_url"}} has-error{{end}}" data-when="demo"><label for="demo_url">Demo download link</label><input class="input" type="url" id="demo_url" name="demo_url" value="{{.Values.demo_url}}" placeholder="https://…" maxlength="500"><span class="hint">Must be either a direct download or a link to a free download from a supported storefront (e.g. Steam).</span>{{with index .Errors "demo_url"}}<span class="error">{{.}}</span>{{end}}</div>
+        <div class="field{{if index .Errors "notes"}} has-error{{end}}" data-when="source"><label for="notes">Notes <span class="faint">(optional)</span></label><textarea class="textarea" id="notes" name="notes" maxlength="2000" placeholder="Anything we should know, e.g. which edition, or the account you gifted from…">{{.Values.notes}}</textarea>{{with index .Errors "notes"}}<span class="error">{{.}}</span>{{end}}</div>
+      </div>
+      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
+      <div class="form-actions" data-when="source"><button class="btn btn-primary" type="submit">Submit request</button> <a class="link-arrow" href="{{.Game.Path}}">Cancel</a></div>
+    </div>
+  </form>
+  {{else}}<div class="card" style="max-width:720px"><p class="muted"><a href="/login?next=/games/{{.Game.ID}}/donate">Sign in</a> to submit a request.</p></div>{{end}}
+  {{end}}
+</section>
+{{end}}
+{{define "scripts"}}<script src="{{asset "js/form.js"}}" defer></script>{{end}}

@@ -1,0 +1,38 @@
+{{define "content"}}
+<section class="page">
+  <p class="small" style="margin-bottom:14px"><a href="{{.Report.GamePath}}">‹ {{.Report.GameName}}</a></p>
+  {{if ne .Report.Visibility "visible"}}<div class="notice notice-warn" style="margin-bottom:16px">This report is {{.Report.Visibility}} and only visible to you.</div>{{end}}
+  {{template "report_card" .Report}}
+
+  <h2 class="section-title" id="comments">Comments <span class="count">{{len .Report.Comments}}</span></h2>
+  <div class="card">
+    {{if not .Report.Comments}}<p class="muted">No comments yet.</p>{{end}}
+    {{range .Report.Comments}}
+    <div class="comment" id="comment-{{.ID}}" data-author="{{.UserID}}">
+      <div class="report-head"><span class="who"><strong>{{.Author}}</strong>{{if eq .AuthorKind "bot"}}<span class="bot"><i class="fas fa-robot"></i> Auto-Triage</span>{{end}}</span><time datetime="{{isodate .CreatedAt}}">{{date .CreatedAt}}</time>
+        <details class="comment-delete" data-delete-comment hidden><summary>Delete</summary><form method="post" action="/comments/{{.ID}}/delete"><input type="hidden" name="confirm" value="1"><span>Delete this comment?</span> <button class="btn btn-danger btn-sm" type="submit">Delete</button></form></details></div>
+      {{if .Config}}{{template "config_line" .Config}}{{end}}
+      <div class="md">{{if eq .AuthorKind "bot"}}{{mdBot .Body}}{{else}}{{md .Body}}{{end}}</div>
+    </div>
+    {{end}}
+  </div>
+
+  {{if .Error}}<div class="notice notice-error" style="margin:24px 0 0">{{.Error}}{{if .ErrorList}}<ul>{{range .ErrorList}}<li><code>{{.}}</code></li>{{end}}</ul>{{end}}</div>{{end}}
+
+  <h2 class="section-title" id="comment-form">Add a comment</h2>
+  <form class="form" method="post" action="/reports/{{.Report.ID}}/comments" data-config-form>
+    <div class="card">
+      <div class="field{{if index .Errors "body"}} has-error{{end}}">
+        <label for="body">Comment</label>
+        {{template "mdedit" (dict "ID" "body" "Name" "body" "Value" .Values.body "Placeholder" "Share what you found, a workaround, or a question…" "Max" 10000 "Required" true)}}
+        {{with index .Errors "body"}}<span class="error">{{.}}</span>{{end}}
+      </div>
+      <label class="choice"><input type="checkbox" name="include_config" value="1"{{if .Values.include_config}} checked{{end}}> <span>Include my configuration <small>UTM version, guest OS and hardware.</small></span></label>
+      <div data-when="config" style="margin-top:16px">{{template "config_fields" (dict "Prefix" "c_" "Versions" .Versions "Values" .Values "Errors" .Errors "Locked" false "VersionLabel" "")}}</div>
+      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
+      <div class="form-actions"><button class="btn btn-primary" type="submit">Post comment</button> <span class="small faint">You'll be asked to sign in if you haven't.</span></div>
+    </div>
+  </form>
+</section>
+{{end}}
+{{define "scripts"}}<script src="{{asset "js/form.js"}}" defer></script><script src="{{asset "js/preview.js"}}" defer></script>{{end}}

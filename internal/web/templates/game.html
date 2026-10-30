@@ -1,0 +1,45 @@
+{{define "content"}}
+<section class="page">
+  <div class="game-head">
+    <aside>
+      <div class="cover">{{if .Game.CoverBig}}<img src="/covers/{{.Game.CoverBig}}" alt="Cover art for {{.Game.Name}}" width="220" height="293">{{else}}<i class="fas fa-gamepad"></i>{{end}}</div>
+      <div class="aside-actions">
+        <form method="post" action="/games/{{.Game.ID}}/star" data-toggle="star" data-id="{{.Game.ID}}">
+          <button class="btn btn-white" type="submit" data-star-game="{{.Game.ID}}"><i class="fas fa-star"></i> <span class="label">Star</span> · <span data-star-count="{{.Game.ID}}">{{.Game.StarCount}}</span></button>
+        </form>
+        {{if not .Game.TriageAvailable}}<a class="btn btn-white has-tip" href="/games/{{.Game.ID}}/donate"><i class="fas fa-gift"></i> Donate a copy
+          <span class="tip" role="tooltip">Maintainers need a licensed copy of the game to triage reported issues. Gift one to a UTM account or point us to a free demo.</span></a>{{end}}
+        <a class="btn btn-primary" href="/reports/new?game={{.Game.ID}}"><i class="fas fa-plus"></i> Submit a report</a>
+      </div>
+      {{if .Game.Websites}}<h4 class="faint small" style="margin:20px 0 8px;font-weight:600">Storefronts</h4>
+      <div class="store-links">{{range .Game.Websites}}<a class="btn btn-white btn-sm" href="{{.URL}}" rel="noopener nofollow" target="_blank">{{storeIcon .Storefront}} {{.Label}}</a>{{end}}</div>{{end}}
+    </aside>
+    <div>
+      <h1>{{.Game.Name}}{{if .Game.Year}} <span class="faint" style="font-weight:600">({{.Game.Year}})</span>{{end}}</h1>
+      <div class="badges">
+        <span class="status status-lg status-{{ratingColor .Game.Status}}">{{ratingLabel .Game.Status}}</span>
+        {{if .Game.StatusVersion}}<span class="faint small">on UTM {{.Game.StatusVersion.Label}}</span>{{end}}
+        {{template "triage_badge" .Game}}
+      </div>
+      {{if .Game.Summary}}<p class="summary">{{.Game.Summary}}</p>{{end}}
+      <div class="facts">
+        {{if .Game.GameType}}<span>{{.Game.GameType}}</span>{{end}}
+        {{if .Game.Engines}}<span><i class="fas fa-gears"></i> {{join .Game.Engines ", "}}</span>{{end}}
+        {{if .Game.Genres}}<span>{{join .Game.Genres ", "}}</span>{{end}}
+        <span><i class="fas fa-file-lines"></i> {{.Game.ReportCount}} {{plural .Game.ReportCount "report" "reports"}}</span>
+        <span><i class="fas fa-star"></i> <span data-star-count="{{.Game.ID}}">{{.Game.StarCount}}</span> {{plural .Game.StarCount "star" "stars"}}</span>
+        {{if .Game.IGDBURL}}<a href="{{.Game.IGDBURL}}" rel="noopener">IGDB page</a>{{end}}
+      </div>
+    </div>
+  </div>
+
+  <h2 class="section-title">Reports <span class="count">status is decided by reports and their +1s on the newest UTM version</span></h2>
+  {{if not .Groups}}<div class="card"><p class="muted">No reports yet.</p></div>{{end}}
+  {{range .Groups}}
+  <details class="version-group"{{if .Newest}} open{{end}}>
+    <summary>UTM {{.Version.Label}} <span class="count">{{len .Reports}} {{plural (len .Reports) "report" "reports"}}</span>{{if .Newest}}<span class="tag">newest</span>{{else}}<span class="count">older version</span>{{end}}</summary>
+    <div class="report-list">{{range .Reports}}{{template "report_card" .}}{{end}}</div>
+  </details>
+  {{end}}
+</section>
+{{end}}

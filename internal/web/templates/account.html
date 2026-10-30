@@ -1,0 +1,64 @@
+{{define "content"}}
+<section class="page">
+  <div class="page-head"><h1>Your account</h1></div>
+  {{if .Error}}<div class="notice notice-error" style="margin-bottom:20px">{{.Error}}</div>{{end}}
+  <div class="account-grid">
+    <div class="card">
+      <h2>Profile</h2>
+      <form method="post" action="/account" class="inline-form">
+        <label class="sr-only" for="display_name">Display name</label>
+        <input class="input" id="display_name" name="display_name" value="{{.User.DisplayName}}" maxlength="32" required>
+        <button class="btn btn-primary btn-sm" type="submit">Save</button>
+      </form>
+      <p class="small faint" style="margin:10px 0 0">Your display name is shown on your reports and comments. Your email address is not stored.</p>
+      <form method="post" action="/logout" style="margin-top:22px"><button class="btn btn-white btn-sm" type="submit"><i class="fas fa-right-from-bracket"></i> Sign out</button></form>
+    </div>
+    <div class="card">
+      <h2>Starred games <span class="count">{{len .Stars}}</span></h2>
+      {{if .Stars}}<div class="mini-list">{{range .Stars}}<a href="{{.Path}}"><span>{{.Name}}</span>{{template "status_badge" .Status}}</a>{{end}}</div>{{else}}<p class="muted">Star a game to follow it.</p>{{end}}
+    </div>
+    <div class="card">
+      <h2>Your reports <span class="count">{{len .Reports}}</span></h2>
+      {{if .Reports}}<div class="mini-list">{{range .Reports}}<a href="{{.Path}}"><span>{{.GameName}} <span class="faint">· UTM {{.Config.Version.Label}}</span></span>{{template "status_badge" .Rating}}</a>{{end}}</div>{{else}}<p class="muted">No reports yet. <a href="/reports/new">Submit one</a>.</p>{{end}}
+    </div>
+  </div>
+
+  <div class="card settings">
+    <h2>Your data</h2>
+    <div class="settings-row">
+      <div>
+        <strong>Export</strong>
+        <span class="muted">A ZIP archive of everything you have submitted, including your {{.Attachments}} {{plural .Attachments "attachment" "attachments"}}. Available once a day; files uploaded in the last {{.ExportMinAgeHrs}} hours are included in a later export.</span>
+      </div>
+      {{if .ExportNext}}<span class="small muted">Next export {{date .ExportNext}}</span>{{else}}
+      <form method="post" action="/account/export"><button class="btn btn-white btn-sm" type="submit"><i class="fas fa-download"></i> Export</button></form>{{end}}
+    </div>
+    <div class="settings-row">
+      <div>
+        <strong>Delete attachments</strong>
+        <span class="muted">Remove every file you have uploaded. Your reports stay.</span>
+      </div>
+      <details class="confirm">
+        <summary class="btn btn-outline-danger btn-sm">Delete…</summary>
+        <form method="post" action="/account/delete-attachments">
+          <input type="hidden" name="confirm" value="1">
+          <button class="btn btn-danger btn-sm" type="submit">Yes, delete all attachments</button>
+        </form>
+      </details>
+    </div>
+    <div class="settings-row">
+      <div>
+        <strong>Delete account</strong>
+        <span class="muted">Remove your account and everything you have submitted. Reports you can no longer delete yourself stay, without your name.</span>
+      </div>
+      <details class="confirm">
+        <summary class="btn btn-outline-danger btn-sm">Delete…</summary>
+        <form method="post" action="/account/delete">
+          <input type="hidden" name="confirm" value="1">
+          <button class="btn btn-danger btn-sm" type="submit">Yes, delete my account</button>
+        </form>
+      </details>
+    </div>
+  </div>
+</section>
+{{end}}

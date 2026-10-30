@@ -1,0 +1,148 @@
+{{define "content"}}
+<article class="prose triage-doc">
+  <h1>How Auto-Triage works</h1>
+  <p class="lede">Game compatibility is a complex issue because graphics drivers often need to include tweaks and workarounds for specific games. The traditional approach is to hire a lot of people to play-test the games to find issues and then hire more people to debug and patch the driver. This is one reason why so few graphics card makers exist: it requires significant capital to maintain these large teams. As a small, open source, project we are changing the script by leveraging the community to test games and new automation technology to fix them. Note that we are not re-compiling, reverse engineering, or remaking any games. The goal is to get games to run as faithfully as possible in UTM. Auto-Triage is an automated agent that takes a compatibility report, reproduces the problem on a real test machine, and tries to fix it in UTM's driver stack.</p>
+
+  <h2>Requirements</h2>
+  <p>The agent needs a licensed copy of the game to run it. Games that are owned on the triage machines show <span class="triage is-available"><i class="fas fa-robot"></i> Auto-Triage available</span> on their page and are picked up automatically. Games that are not owned by any of the triage machines shows <span class="triage"><i class="fas fa-robot"></i> Auto-Triage unavailable</span>. You can change that by gifting a copy to one of our storefront accounts or pointing us to a free demo from the game's page; look for the <em>Donate a copy</em> button. This is the second most consequential way of having game compatibility issues resolved (the most consequential is submitting a detailed bug report).</p>
+
+  <h2>The triage pipeline</h2>
+  <p>Reports move through the stages below. Boxes on the left are the main path; the branches to the right are where a report leaves it. The pill in each box is the status you will see on the report.</p>
+  <figure class="flow">
+    <svg viewBox="0 0 760 912" role="img" aria-labelledby="flow-title" xmlns="http://www.w3.org/2000/svg">
+      <title id="flow-title">Auto-Triage pipeline: a report is queued, picked up by a test machine, reproduced, fixed across the driver stack, validated, proposed as pull requests, and shipped in an update. Side branches: needs clarification, cannot reproduce, not to fix.</title>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="flow-arrowhead"/></marker>
+      </defs>
+
+      <!-- main path -->
+      <g class="flow-node">
+        <rect x="90" y="10" width="320" height="56" rx="14"/>
+        <text x="250" y="34" class="flow-label">Report submitted</text>
+        <text x="250" y="53" class="flow-sub">for a game with Auto-Triage available</text>
+      </g>
+      <line x1="250" y1="66" x2="250" y2="100" class="flow-edge" marker-end="url(#arrow)"/>
+
+      <g class="flow-node">
+        <rect x="90" y="100" width="320" height="72" rx="14"/>
+        <text x="250" y="124" class="flow-label">Queued for a test machine</text>
+        <text x="250" y="143" class="flow-sub">waits for a machine with the right tools and license</text>
+        <g transform="translate(205 150)"><rect width="90" height="18" rx="9" class="pill pill-gray"/><text x="45" y="13" class="pill-text">Pending</text></g>
+      </g>
+      <line x1="250" y1="172" x2="250" y2="206" class="flow-edge" marker-end="url(#arrow)"/>
+
+      <g class="flow-node">
+        <rect x="90" y="206" width="320" height="72" rx="14"/>
+        <text x="250" y="230" class="flow-label">Install and reproduce</text>
+        <text x="250" y="249" class="flow-sub">the agent installs the game and follows the report</text>
+        <g transform="translate(200 256)"><rect width="100" height="18" rx="9" class="pill pill-blue"/><text x="50" y="13" class="pill-text">In progress</text></g>
+      </g>
+      <line x1="250" y1="278" x2="250" y2="312" class="flow-edge" marker-end="url(#arrow)"/>
+
+      <g class="flow-decision">
+        <path d="M250 312 L340 348 L250 384 L160 348 Z"/>
+        <text x="250" y="353" class="flow-label">Reproduced?</text>
+      </g>
+      <text x="262" y="408" class="flow-edge-label">yes</text>
+      <line x1="250" y1="384" x2="250" y2="420" class="flow-edge" marker-end="url(#arrow)"/>
+      <text x="372" y="342" class="flow-edge-label">no</text>
+      <line x1="340" y1="348" x2="440" y2="348" class="flow-edge" marker-end="url(#arrow)"/>
+
+      <!-- branch: needs clarification / cannot reproduce -->
+      <g class="flow-node flow-branch">
+        <rect x="440" y="300" width="300" height="96" rx="14"/>
+        <text x="590" y="324" class="flow-label">Asks for more details</text>
+        <text x="590" y="343" class="flow-sub">a comment on the report</text>
+        <g transform="translate(518 350)"><rect width="144" height="18" rx="9" class="pill pill-yellow"/><text x="72" y="13" class="pill-text">Needs clarification</text></g>
+        <text x="590" y="386" class="flow-sub">or, if nothing more can be tried:</text>
+      </g>
+      <line x1="590" y1="396" x2="590" y2="424" class="flow-edge" marker-end="url(#arrow)"/>
+      <g class="flow-node flow-branch flow-end">
+        <rect x="440" y="424" width="300" height="48" rx="14"/>
+        <g transform="translate(524 439)"><rect width="132" height="18" rx="9" class="pill pill-gray"/><text x="66" y="13" class="pill-text">Cannot reproduce</text></g>
+      </g>
+      <path d="M440 324 C 426 324, 426 250, 412 250" class="flow-edge flow-edge-loop" marker-end="url(#arrow)"/>
+
+      <g class="flow-node">
+        <rect x="90" y="420" width="320" height="72" rx="14"/>
+        <text x="250" y="444" class="flow-label">Develop fix across the driver stack</text>
+        <text x="250" y="463" class="flow-sub">guest drivers, host runtime, hypervisor, etc</text>
+        <g transform="translate(200 470)"><rect width="100" height="18" rx="9" class="pill pill-blue"/><text x="50" y="13" class="pill-text">In progress</text></g>
+      </g>
+      <line x1="250" y1="492" x2="250" y2="526" class="flow-edge" marker-end="url(#arrow)"/>
+
+      <g class="flow-decision">
+        <path d="M250 526 L340 562 L250 598 L160 562 Z"/>
+        <text x="250" y="567" class="flow-label">Fixable?</text>
+      </g>
+      <text x="262" y="622" class="flow-edge-label">yes</text>
+      <line x1="250" y1="598" x2="250" y2="634" class="flow-edge" marker-end="url(#arrow)"/>
+      <text x="372" y="556" class="flow-edge-label">no</text>
+      <line x1="340" y1="562" x2="440" y2="562" class="flow-edge" marker-end="url(#arrow)"/>
+
+      <!-- branch: not to fix -->
+      <g class="flow-node flow-branch flow-end">
+        <rect x="440" y="520" width="300" height="84" rx="14"/>
+        <text x="590" y="544" class="flow-label">Closed with a reason</text>
+        <text x="590" y="563" class="flow-sub">e.g. a hardware limitation</text>
+        <g transform="translate(545 570)"><rect width="90" height="18" rx="9" class="pill pill-red"/><text x="45" y="13" class="pill-text">Not to fix</text></g>
+      </g>
+
+      <g class="flow-node">
+        <rect x="90" y="634" width="320" height="72" rx="14"/>
+        <text x="250" y="658" class="flow-label">Validate the fix</text>
+        <text x="250" y="677" class="flow-sub">regression tests, benchmarks and a code review</text>
+        <g transform="translate(200 684)"><rect width="100" height="18" rx="9" class="pill pill-blue"/><text x="50" y="13" class="pill-text">In progress</text></g>
+      </g>
+      <line x1="250" y1="706" x2="250" y2="740" class="flow-edge" marker-end="url(#arrow)"/>
+
+      <g class="flow-node flow-success">
+        <rect x="90" y="740" width="320" height="72" rx="14"/>
+        <text x="250" y="764" class="flow-label">Pull requests opened</text>
+        <text x="250" y="783" class="flow-sub">maintainers review the change</text>
+        <g transform="translate(200 790)"><rect width="100" height="18" rx="9" class="pill pill-green"/><text x="50" y="13" class="pill-text">Fix proposed</text></g>
+      </g>
+      <line x1="250" y1="812" x2="250" y2="846" class="flow-edge" marker-end="url(#arrow)"/>
+
+      <g class="flow-node flow-ship">
+        <rect x="90" y="846" width="320" height="56" rx="14"/>
+        <text x="250" y="870" class="flow-label">Shipped</text>
+        <text x="250" y="889" class="flow-sub">in a future UTM release or driver update</text>
+      </g>
+    </svg>
+  </figure>
+
+  <h2>Step by step</h2>
+
+  <h3>1. A report is queued <span class="triage-status triage-gray">Pending</span></h3>
+  <p>Our test machines are Macs with development and debugging tools installed, each running a copy of the agent. When a report comes in for a game with Auto-Triage available, it joins a queue and waits for a machine whose agent holds a license for that game. Priority is given to games with the most stars. The report shows <em>Pending</em> until one picks it up.</p>
+
+  <h3>2. The agent reproduces the issue <span class="triage-status triage-blue">In progress</span></h3>
+  <p>The agent installs the game on the machine, sets up UTM to match the configuration in your report as closely as it can, and follows your steps to reproduce. This is where a precise report pays off: the UTM version, guest OS, graphics backend, and concrete steps all narrow the search. Private attachments such as logs and recordings are read at this stage too.</p>
+
+  <h3>3. When it cannot reproduce <span class="triage-status triage-yellow">Needs clarification</span> <span class="triage-status triage-gray">Cannot reproduce</span></h3>
+  <p>If the problem does not show up, the agent leaves a comment on the report asking for whatever is missing: a setting it could not infer, a save file, a clearer sequence of steps. The report is marked <em>Needs clarification</em> and goes back into the queue as soon as you reply. If the problem still cannot be triggered after the extra information, or there is nothing more to ask, the report is marked <em>Cannot reproduce</em>. A new report with different details can start the process again.</p>
+
+  <h3>4. The agent works on a fix <span class="triage-status triage-blue">In progress</span></h3>
+  <p>Once the issue reproduces reliably, the agent looks for the cause anywhere in the stack that UTM controls: the guest drivers, the host side, the hypervisor, and the graphics translation layers in between. Some problems turn out to be outside that reach, for example a limit of the hardware itself, or is a known architectural issue. In that case the agent explains why and marks the report <span class="triage-status triage-red">Not to fix</span>.</p>
+
+  <h3>5. The fix is validated <span class="triage-status triage-blue">In progress</span></h3>
+  <p>A fix that makes one game work is not enough on its own. The agent reruns the reproduction, runs the regression test suites for the components it touched, benchmarks for performance changes, and a code review to find similar issues elsewhere. If any of that fails, it goes back to step 4.</p>
+
+  <h3>6. Pull requests for human review <span class="triage-status triage-green">Fix proposed</span></h3>
+  <p>When validation passes, the report is marked <em>Fix proposed</em> and the agent opens pull requests against the relevant repositories. Maintainers review them and may make follow-up requests and changes. Nothing the agent writes reaches a release without a human accepting it.</p>
+
+  <h3>7. Shipped</h3>
+  <p>Accepted fixes are distributed in a future UTM update or, for driver changes, in a driver update. Once you have updated, a fresh report on the new version is the best way to confirm the fix and to move the game's status.</p>
+
+  <h2>Helping the agent help you</h2>
+  <ul>
+    <li><strong>One issue per report.</strong> The agent triages each report on its own; a report that mixes several problems is harder to reproduce and to close.</li>
+    <li><strong>Exact versions and settings.</strong> UTM version, guest OS, graphics backend, and your Mac's chip are the first things the agent tries to match.</li>
+    <li><strong>Steps, not symptoms.</strong> "Crashes in the second level after the cutscene" can be followed; "crashes sometimes" cannot.</li>
+    <li><strong>Attach logs and recordings.</strong> Attachments are private to you, the maintainers, and the agent, and are often the fastest route to the cause.</li>
+    <li><strong>Answer clarification requests.</strong> A report marked Needs clarification is paused until you reply.</li>
+    <li><strong>Donate a copy.</strong> If a game shows Auto-Triage unavailable, gifting it to one of our storefront accounts or sending a free demo link turns it on for everyone.</li>
+  </ul>
+</article>
+{{end}}
