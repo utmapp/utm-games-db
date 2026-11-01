@@ -237,9 +237,9 @@ func (s *Syncer) upsertPage(ctx context.Context, games []Game) (inserted, update
 	var changedActive []int64
 	now := time.Now().Unix()
 	err = s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
-		stmt, err := tx.PrepareContext(ctx, `INSERT INTO igdb_games (id, checksum, name, slug, summary, url, first_release_date, game_type_id, cover_id, created_at, updated_at, genres_json, game_engines_json, raw_json, synced_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(id) DO UPDATE SET checksum=excluded.checksum, name=excluded.name, slug=excluded.slug, summary=excluded.summary, url=excluded.url, first_release_date=excluded.first_release_date, game_type_id=excluded.game_type_id, cover_id=excluded.cover_id, created_at=excluded.created_at, updated_at=excluded.updated_at, genres_json=excluded.genres_json, game_engines_json=excluded.game_engines_json, raw_json=excluded.raw_json, synced_at=excluded.synced_at`)
+		stmt, err := tx.PrepareContext(ctx, `INSERT INTO igdb_games (id, checksum, name, alt_names, slug, summary, url, first_release_date, game_type_id, cover_id, created_at, updated_at, genres_json, game_engines_json, raw_json, synced_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(id) DO UPDATE SET checksum=excluded.checksum, name=excluded.name, alt_names=excluded.alt_names, slug=excluded.slug, summary=excluded.summary, url=excluded.url, first_release_date=excluded.first_release_date, game_type_id=excluded.game_type_id, cover_id=excluded.cover_id, created_at=excluded.created_at, updated_at=excluded.updated_at, genres_json=excluded.genres_json, game_engines_json=excluded.game_engines_json, raw_json=excluded.raw_json, synced_at=excluded.synced_at`)
 		if err != nil {
 			return err
 		}
@@ -258,7 +258,7 @@ func (s *Syncer) upsertPage(ctx context.Context, games []Game) (inserted, update
 			} else {
 				inserted++
 			}
-			if _, err := stmt.ExecContext(ctx, g.ID, g.Checksum, g.Name, g.Slug, g.Summary, g.URL, nz(g.FirstReleaseDate), nz(g.GameType), nz(g.Cover), nz(g.CreatedAt), nz(g.UpdatedAt),
+			if _, err := stmt.ExecContext(ctx, g.ID, g.Checksum, g.Name, g.AltNames(), g.Slug, g.Summary, g.URL, nz(g.FirstReleaseDate), g.GameType, nz(g.Cover), nz(g.CreatedAt), nz(g.UpdatedAt),
 				jsonArr(g.Genres), jsonArr(g.GameEngines), string(raw), now); err != nil {
 				return err
 			}

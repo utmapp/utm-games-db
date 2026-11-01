@@ -1,5 +1,7 @@
 package igdb
 
+import "strings"
+
 // Game is the subset of /v4/games we mirror. Field order matters: the JSON
 // encoding of this struct is stored as raw_json and compared on resync.
 type Game struct {
@@ -18,10 +20,30 @@ type Game struct {
 	Genres           []int64 `json:"genres,omitempty"`
 	GameEngines      []int64 `json:"game_engines,omitempty"`
 	Websites         []int64 `json:"websites,omitempty"`
+	// AlternativeNames is expanded in the games query (alternative_names.name):
+	// renamed titles, acronyms and translations, indexed for search.
+	AlternativeNames []AltName `json:"alternative_names,omitempty"`
+}
+
+// AltName is an expanded /v4/alternative_names row.
+type AltName struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
+// AltNames joins the alternative names for storage and indexing.
+func (g Game) AltNames() string {
+	names := make([]string, 0, len(g.AlternativeNames))
+	for _, a := range g.AlternativeNames {
+		if a.Name != "" {
+			names = append(names, a.Name)
+		}
+	}
+	return strings.Join(names, "\n")
 }
 
 // GameFields is the Apicalypse field list matching Game.
-const GameFields = "checksum,cover,created_at,first_release_date,game_engines,game_type,genres,name,platforms,slug,summary,updated_at,url,websites"
+const GameFields = "alternative_names.name,checksum,cover,created_at,first_release_date,game_engines,game_type,genres,name,platforms,slug,summary,updated_at,url,websites"
 
 // Cover is /v4/covers.
 type Cover struct {

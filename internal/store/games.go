@@ -102,6 +102,13 @@ func ftsQuery(q string) string {
 }
 
 // SearchCatalog searches the full IGDB mirror for the report form.
+// IGDB game_type ids. Main games and their editions are offered first in
+// search; DLC, expansions and bundles after; the rest are not offered.
+const (
+	searchableTypes = "0, 1, 2, 3, 4, 8, 9, 10, 11" // main, DLC, expansion, bundle, standalone expansion, remake, remaster, expanded game, port
+	addonTypes      = "1, 2, 3"                     // DLC, expansion, bundle (collections, trilogies)
+)
+
 func (s *Store) SearchCatalog(ctx context.Context, q string, limit int) ([]CatalogHit, error) {
 	match := ftsQuery(q)
 	if match == "" {
@@ -110,13 +117,17 @@ func (s *Store) SearchCatalog(ctx context.Context, q string, limit int) ([]Catal
 	if limit <= 0 || limit > 50 {
 		limit = 20
 	}
-	// Rank: FTS relevance, then main games before DLC/mods, then newest.
+	// Only things one can install and play on their own are offered: base
+	// games (and their remakes, remasters, ports, expanded and standalone
+	// editions) first, then DLC, expansions and bundles. Seasons, updates,
+	// packs, mods, episodes and forks are left out. Within a tier: FTS
+	// relevance, games that already have reports, then newest.
 	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT g.id, g.name, g.slug, COALESCE(g.first_release_date, 0), COALESCE(t.type, ''), a.igdb_game_id IS NOT NULL
 		FROM igdb_games_fts f JOIN igdb_games g ON g.id = f.rowid
 		LEFT JOIN igdb_game_types t ON t.id = g.game_type_id
 		LEFT JOIN games a ON a.igdb_game_id = g.id
-		WHERE igdb_games_fts MATCH ?
-		ORDER BY bm25(igdb_games_fts), (g.game_type_id = 0) DESC, (a.igdb_game_id IS NOT NULL) DESC, g.first_release_date DESC
+		WHERE igdb_games_fts MATCH ? AND COALESCE(g.game_type_id, 0) IN (`+searchableTypes+`)
+		ORDER BY (COALESCE(g.game_type_id, 0) IN (`+addonTypes+`)), bm25(igdb_games_fts), (a.igdb_game_id IS NOT NULL) DESC, g.first_release_date DESC
 		LIMIT ?`, match, limit)
 	if err != nil {
 		return nil, err
