@@ -15,10 +15,11 @@ import (
 type UserExport struct {
 	ExportedAt time.Time `json:"exported_at"`
 	User       struct {
-		ID          int64     `json:"id"`
-		DisplayName string    `json:"display_name"`
-		CreatedAt   time.Time `json:"created_at"`
-		LastLoginAt time.Time `json:"last_login_at"`
+		ID          int64      `json:"id"`
+		DisplayName string     `json:"display_name"`
+		CreatedAt   time.Time  `json:"created_at"`
+		LastLoginAt time.Time  `json:"last_login_at"`
+		Host        HostConfig `json:"host"` // the Mac saved on the profile
 	} `json:"user"`
 	Reports          []Report           `json:"reports"`  // with comments and attachment metadata
 	Comments         []Comment          `json:"comments"` // the user's comments on any report
@@ -45,7 +46,7 @@ func (s *Store) ExportUserData(ctx context.Context, userID int64, attachmentCuto
 		return nil, err
 	}
 	ex := &UserExport{ExportedAt: time.Now()}
-	ex.User.ID, ex.User.DisplayName, ex.User.CreatedAt, ex.User.LastLoginAt = u.ID, u.DisplayName, u.CreatedAt, u.LastLoginAt
+	ex.User.ID, ex.User.DisplayName, ex.User.CreatedAt, ex.User.LastLoginAt, ex.User.Host = u.ID, u.DisplayName, u.CreatedAt, u.LastLoginAt, u.Host
 
 	ids, err := queryInt64s(ctx, s.DB.Reader, `SELECT id FROM reports WHERE user_id = ? ORDER BY id`, userID)
 	if err != nil {

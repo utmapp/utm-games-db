@@ -1,8 +1,11 @@
 package web
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -317,6 +320,21 @@ func TestSavedHostConfig(t *testing.T) {
 	if _, body := alice.get("/api/me"); !strings.Contains(body, `"host":{"macos_version":"15.1","device_model":"Mac mini","chip":"M4","ram_gb":24}`) {
 		t.Errorf("api/me lacks host: %s", body)
 	}
+	// The saved Mac is part of the account export.
+	resp, body := alice.postForm("/account/export", nil, false)
+	if resp.StatusCode != 200 {
+		t.Fatalf("export = %d", resp.StatusCode)
+	}
+	var ex struct {
+		User struct {
+			Host struct {
+				MacOSVersion string `json:"macos_version"`
+			} `json:"host"`
+		} `json:"user"`
+	}
+	if err := json.Unmarshal([]byte(zipText(t, body, "data.json")), &ex); err != nil || ex.User.Host.MacOSVersion != "15.1" {
+		t.Errorf("export lacks the saved Mac: %v %+v", err, ex)
+	}
 	// Submitting a report with other values and the box ticked updates the profile.
 	if resp, body := alice.submitReport(reportOpts{gameID: 1, verID: e.verID, rating: "playable", desc: "Runs well.", extra: map[string]string{"macos_version": "26.1", "chip": "M5", "save_host": "1"}}); resp.StatusCode != 303 {
 		t.Fatalf("report: %d %s", resp.StatusCode, body)
@@ -330,4 +348,23 @@ func TestSavedHostConfig(t *testing.T) {
 	if u, _ := e.st.GetUser(context.Background(), 1); u.Host.MacOSVersion != "26.1" {
 		t.Fatalf("profile changed without consent: %+v", u.Host)
 	}
+}
+
+// zipText returns one file of a ZIP archive held in body.
+func zipText(t *testing.T, body, name string) string {
+	t.Helper()
+	zr, err := zip.NewReader(strings.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range zr.File {
+		if f.Name == name {
+			rc, _ := f.Open()
+			b, _ := io.ReadAll(rc)
+			rc.Close()
+			return string(b)
+		}
+	}
+	t.Fatalf("%s not in archive", name)
+	return ""
 }
