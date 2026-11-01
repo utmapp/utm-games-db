@@ -27,6 +27,14 @@ func Public(w http.ResponseWriter, sMaxAge int) {
 }
 
 // Private marks a response as per-user and uncacheable.
+// PublicDocument marks a machine-read document (the agent view) as
+// shareable. No browser is involved, so clients may reuse it for a minute
+// without asking and the CDN keeps it for sMaxAge; writes purge it.
+func PublicDocument(w http.ResponseWriter, sMaxAge int) {
+	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=60, s-maxage=%d", sMaxAge))
+	w.Header().Set("Vary", "Accept-Encoding")
+}
+
 func Private(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "private, no-store")
 }
@@ -39,13 +47,27 @@ func Immutable(w http.ResponseWriter) {
 // WriteHTML emits a buffered HTML body with a strong ETag, answering
 // If-None-Match with 304 when it matches.
 func WriteHTML(w http.ResponseWriter, r *http.Request, status int, body *bytes.Buffer) {
-	sum := sha256.Sum256(body.Bytes())
+	writeBody(w, r, status, "text/html; charset=utf-8", body.Bytes())
+}
+
+// WriteJSON writes a JSON document with the same ETag handling as pages.
+func WriteJSON(w http.ResponseWriter, r *http.Request, status int, body []byte) {
+	writeBody(w, r, status, "application/json; charset=utf-8", body)
+}
+
+// WriteText writes a plain-text or Markdown document.
+func WriteText(w http.ResponseWriter, r *http.Request, status int, contentType string, body []byte) {
+	writeBody(w, r, status, contentType, body)
+}
+
+func writeBody(w http.ResponseWriter, r *http.Request, status int, contentType string, body []byte) {
+	sum := sha256.Sum256(body)
 	// A weak ETag: the CDN recompresses responses and drops strong ETags
-	// (which promise byte identity) but forwards weak ones, so browsers can
+	// (which promise byte identity) but forwards weak ones, so clients can
 	// revalidate against the edge cache and get a 304.
 	tag := `"` + hex.EncodeToString(sum[:16]) + `"`
 	w.Header().Set("ETag", "W/"+tag)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Type", contentType)
 	if status == http.StatusOK && r.Method == http.MethodGet {
 		for _, v := range strings.Split(r.Header.Get("If-None-Match"), ",") {
 			if strings.TrimPrefix(strings.TrimSpace(v), "W/") == tag {
@@ -56,7 +78,7 @@ func WriteHTML(w http.ResponseWriter, r *http.Request, status int, body *bytes.B
 	}
 	w.WriteHeader(status)
 	if r.Method != http.MethodHead {
-		w.Write(body.Bytes())
+		w.Write(body)
 	}
 }
 

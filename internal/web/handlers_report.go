@@ -34,6 +34,7 @@ type reportFormPage struct {
 	Ratings             []status.Rating
 	Values              formValues
 	Errors              map[string]string
+	FormToken           string // signed timestamp: a form posted faster than a person could fill it is refused
 	ExistingAttachments []store.Attachment
 	Accept              string
 	AcceptedLabel       string
@@ -58,6 +59,7 @@ func (s *Server) newReportFormPage(r *http.Request) (*reportFormPage, error) {
 		Ratings:        status.AllRatings,
 		Values:         formValues{},
 		Errors:         map[string]string{},
+		FormToken:      s.Auth.Keys.FormToken(time.Now()),
 		Accept:         strings.Join(accept, ","),
 		AcceptedLabel:  upload.AcceptedLabel(),
 		MaxFiles:       s.Cfg.UploadMaxFiles,
@@ -220,6 +222,14 @@ func (s *Server) handleReportCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	v := r.MultipartForm.Value
 	form := url.Values(v)
+	if msg := s.humanSpeed(form); msg != "" {
+		gameID, _ := strconv.ParseInt(form.Get("game_id"), 10, 64)
+		s.loadFormGame(r, page, gameID)
+		page.Values = valuesFrom(form, reportKeys...)
+		page.Error = msg
+		s.private(w, r, "report_form", http.StatusBadRequest, page)
+		return
+	}
 	gameID, _ := strconv.ParseInt(form.Get("game_id"), 10, 64)
 	if err := s.loadFormGame(r, page, gameID); err != nil {
 		page.Error = "Choose a game first."
@@ -284,7 +294,7 @@ func (s *Server) handleReportCreate(w http.ResponseWriter, r *http.Request) {
 		}
 		cancel()
 	}
-	s.Purger.Purge("/", page.Game.Path(), store.ReportPath(gameID, page.Game.Slug, id))
+	s.Purger.Purge(store.PagesForReport(gameID, page.Game.Slug, id)...)
 	s.Log.Info("report created", "report", id, "game", gameID, "user", user.ID)
 	cdn.Private(w)
 	http.Redirect(w, r, store.ReportPath(gameID, page.Game.Slug, id), http.StatusSeeOther)
@@ -391,6 +401,12 @@ func (s *Server) handleReportUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	form := url.Values(r.MultipartForm.Value)
+	if msg := s.humanSpeed(form); msg != "" {
+		page.Values = reportToValues(rep)
+		page.Error = msg
+		s.private(w, r, "report_form", http.StatusBadRequest, page)
+		return
+	}
 	// Rating, UTM version and guest OS are fixed once a report exists: they
 	// decide which version group and status the report counts towards.
 	form.Set("rating", string(rep.Rating))
@@ -447,7 +463,7 @@ func (s *Server) handleReportUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.Uploads.RemoveAll(removed, s.Log)
 	s.saveHostIfAsked(r, user.ID, in.Config)
-	s.Purger.Purge("/", rep.GamePath(), rep.Path())
+	s.Purger.Purge(store.PagesForReport(rep.GameID, rep.GameSlug, rep.ID)...)
 	cdn.Private(w)
 	http.Redirect(w, r, rep.Path(), http.StatusSeeOther)
 }
@@ -476,7 +492,7 @@ func (s *Server) handleReportDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Uploads.RemoveAll(paths, s.Log)
-	s.Purger.Purge("/", rep.GamePath(), rep.Path())
+	s.Purger.Purge(store.PagesForReport(rep.GameID, rep.GameSlug, rep.ID)...)
 	s.Log.Info("report deleted by author", "report", rep.ID, "user", rep.UserID)
 	cdn.Private(w)
 	http.Redirect(w, r, "/account?deleted=1", http.StatusSeeOther)
@@ -537,4 +553,15 @@ func (s *Server) handleCommentDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	cdn.Private(w)
 	http.Redirect(w, r, back+"#comments", http.StatusSeeOther)
+}
+
+// humanSpeed checks the report form's signed token: a form posted sooner
+// after it was rendered than a person could fill it in, or one rendered
+// too long ago, is refused. It is one of the signals that keep accounts to
+// people; scripts can wait it out, which is why it is cheap and not alone.
+func (s *Server) humanSpeed(form url.Values) string {
+	if _, err := s.Auth.Keys.VerifyFormToken(form.Get("form_token"), time.Now(), s.Cfg.ContentFormMinAge, 24*time.Hour); err != nil {
+		return "That was quick, or the form had been open for too long. Please check the report and submit it again."
+	}
+	return ""
 }

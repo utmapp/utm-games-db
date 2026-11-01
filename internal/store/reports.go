@@ -317,6 +317,42 @@ func (s *Store) SetTriageStatus(ctx context.Context, reportID int64, st string) 
 	return nil
 }
 
+// RecentReports returns the visible reports most recently created or
+// changed, newest first, each with its visible comments. It is the agent
+// view's polling target and is served from a fixed URL so the CDN can hold
+// it; nothing in it depends on who is asking.
+func (s *Store) RecentReports(ctx context.Context, limit int) ([]Report, error) {
+	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT `+reportCols+reportFrom+` WHERE r.visibility = 'visible' ORDER BY r.updated_at DESC, r.id DESC LIMIT ?`, clampLimit(limit))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Report
+	for rows.Next() {
+		r, err := scanReport(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, s.FillComments(ctx, out)
+}
+
+// FillComments loads the visible comments of each report.
+func (s *Store) FillComments(ctx context.Context, reports []Report) error {
+	for i := range reports {
+		c, err := s.ListComments(ctx, reports[i].ID, false)
+		if err != nil {
+			return err
+		}
+		reports[i].Comments = c
+	}
+	return nil
+}
+
 // ListReports is the internal listing (any visibility) with filters.
 // triageStatus "" means no filter; "none" selects untriaged reports.
 func (s *Store) ListReports(ctx context.Context, since time.Time, gameID int64, visibility, triageStatus string, limit int) ([]Report, error) {

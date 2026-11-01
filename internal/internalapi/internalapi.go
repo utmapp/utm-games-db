@@ -48,7 +48,7 @@ func (s *Server) purgeReport(ctx context.Context, reportID int64) {
 		return
 	}
 	if rep, err := s.Store.GetReport(ctx, reportID); err == nil {
-		s.Purger.Purge("/", rep.GamePath(), rep.Path())
+		s.Purger.Purge(store.PagesForReport(rep.GameID, rep.GameSlug, rep.ID)...)
 	}
 }
 
@@ -58,7 +58,7 @@ func (s *Server) purgeGame(ctx context.Context, gameID int64) {
 		return
 	}
 	if g, err := s.Store.GetGame(ctx, gameID); err == nil {
-		s.Purger.Purge("/", g.Path())
+		s.Purger.Purge(store.PagesForGame(g.ID, g.Slug)...)
 	}
 }
 
@@ -526,7 +526,7 @@ func (s *Server) replaceOwned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.Purger != nil {
-		s.Purger.Purge("/") // game pages pick up badge changes within their TTL
+		s.Purger.Purge("/", store.JSONGamesPath) // game pages pick up badge changes within their TTL
 	}
 	s.Log.Info("owned games list replaced", "entries", len(entries), "matched", matched)
 	ok(w, map[string]any{"received": len(entries), "matched": matched})

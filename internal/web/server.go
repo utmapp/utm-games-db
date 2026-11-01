@@ -320,6 +320,7 @@ type Page struct {
 	Title       string
 	Description string
 	Canonical   string
+	AltJSON     string // the agent view of this page, if any
 	BodyClass   string
 	NoIndex     bool
 	User        *store.User // only on private pages

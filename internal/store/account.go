@@ -236,9 +236,10 @@ func (s *Store) DeleteUser(ctx context.Context, userID int64) (paths []string, p
 				pageRows.Close()
 				return err
 			}
-			pages = append(pages, GamePath(gid, slug))
 			if rid != 0 {
-				pages = append(pages, ReportPath(gid, slug, rid))
+				pages = append(pages, PagesForReport(gid, slug, rid)...)
+			} else {
+				pages = append(pages, PagesForGame(gid, slug)...)
 			}
 		}
 		pageRows.Close()

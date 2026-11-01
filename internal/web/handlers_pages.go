@@ -141,7 +141,7 @@ func (s *Server) handleGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	desc := fmt.Sprintf("%s in UTM: %s. %d reports, %d stars.", g.Name, g.Status.Label(), g.ReportCount, g.StarCount)
-	s.public(w, r, "game", cacheGame, &gamePage{Page: Page{Title: g.Name, Description: desc, Canonical: s.Cfg.AbsURL(g.Path())}, Game: g, Groups: groups})
+	s.public(w, r, "game", cacheGame, &gamePage{Page: Page{Title: g.Name, Description: desc, Canonical: s.Cfg.AbsURL(g.Path()), AltJSON: s.Cfg.AbsURL(store.JSONGamePath(g.ID, g.Slug))}, Game: g, Groups: groups})
 }
 
 type reportPage struct {
@@ -176,7 +176,7 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := &reportPage{
-		Page:     Page{Title: rep.GameName + " report", Description: rep.GameName + " in UTM: " + rep.Rating.Label(), Canonical: s.Cfg.AbsURL(rep.Path())},
+		Page:     Page{Title: rep.GameName + " report", Description: rep.GameName + " in UTM: " + rep.Rating.Label(), Canonical: s.Cfg.AbsURL(rep.Path()), AltJSON: s.Cfg.AbsURL(store.JSONReportPath(rep.GameID, rep.GameSlug, rep.ID))},
 		Report:   rep,
 		Versions: versions,
 		Values:   map[string]string{},

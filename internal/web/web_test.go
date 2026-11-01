@@ -93,6 +93,7 @@ func newEnv(t *testing.T) *env {
 	os.Setenv("TRUSTED_PROXY_CIDRS", "127.0.0.0/8,::1/128")
 	os.Setenv("SECRET_KEY", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	os.Setenv("LOGIN_FORM_MIN_AGE", "0s")
+	os.Setenv("CONTENT_FORM_MIN_AGE", "0s")
 	os.Setenv("LOGIN_POW_BITS", "8")
 	os.Setenv("LOGIN_MX_CHECK", "false")
 	os.Setenv("EXPORT_MIN_ATTACHMENT_AGE", "0s")
@@ -237,9 +238,19 @@ type reportOpts struct {
 }
 
 func (c *client) submitReport(o reportOpts) (*http.Response, string) {
+	// The form carries a signed token; fetch it like a browser would.
+	formPath := o.path
+	if formPath == "" {
+		formPath = fmt.Sprintf("/reports/new?game=%d", o.gameID)
+	}
+	_, formBody := c.get(formPath)
+	var tok string
+	if m := formTokenRe.FindStringSubmatch(formBody); m != nil {
+		tok = m[1]
+	}
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
-	fields := map[string]string{
+	fields := map[string]string{"form_token": tok,
 		"game_id": fmt.Sprint(o.gameID), "rating": o.rating, "utm_version_id": fmt.Sprint(o.verID),
 		"guest_os": "windows", "graphics_backend": "dxmt", "macos_version": "15.1", "device_model": "MacBook Pro", "chip": "M3", "ram_gb": "32",
 		"issue_type": "hang_crash", "description": o.desc, "repro": "1. Launch\n2. Wait", "wine_same_issue": "unknown",

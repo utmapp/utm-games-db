@@ -126,6 +126,32 @@ func ReportPath(gameID int64, slug string, reportID int64) string {
 // Path is the canonical page path.
 func (g GameCard) Path() string { return GamePath(g.ID, g.Slug) }
 
+// Machine-readable twins of the pages: the same address plus ".json".
+const (
+	JSONGamesPath    = "/games.json"    // the game list
+	JSONRecentPath   = "/reports.json"  // the most recently changed reports
+	JSONVersionsPath = "/versions.json" // UTM versions
+)
+
+// JSONGamePath is the JSON twin of a game page.
+func JSONGamePath(id int64, slug string) string { return GamePath(id, slug) + ".json" }
+
+// JSONReportPath is the JSON twin of a report page.
+func JSONReportPath(gameID int64, slug string, reportID int64) string {
+	return ReportPath(gameID, slug, reportID) + ".json"
+}
+
+// PagesForGame lists every cached URL that shows a game's counts or status
+// and must be purged when they change.
+func PagesForGame(id int64, slug string) []string {
+	return []string{"/", GamePath(id, slug), JSONGamesPath, JSONGamePath(id, slug)}
+}
+
+// PagesForReport lists every cached URL that shows a report.
+func PagesForReport(gameID int64, slug string, reportID int64) []string {
+	return append(PagesForGame(gameID, slug), ReportPath(gameID, slug, reportID), JSONReportPath(gameID, slug, reportID), JSONRecentPath)
+}
+
 // GameDetail is everything the game page needs besides reports.
 type GameDetail struct {
 	GameCard

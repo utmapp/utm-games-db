@@ -27,6 +27,7 @@
   {{else}}
   <form class="form" method="post" action="{{.Action}}" enctype="multipart/form-data" data-report-form>
     <input type="hidden" name="game_id" value="{{.Game.ID}}">
+    <input type="hidden" name="form_token" value="{{.FormToken}}">
     <div class="card">
       <h2><span class="step-num">1</span>Game</h2>
       <div class="selected-game">
@@ -120,7 +121,7 @@
     <div data-when="submit">
       <div class="form-actions">
         <button class="btn btn-primary" type="submit">{{if .Editing}}Save changes{{else}}Submit report{{end}}</button>
-        <span class="small faint">Submissions are moderated before they appear.</span>
+        <span class="small faint">Reports are written by people about their own experience; automated submissions are removed and the account banned.</span>
       </div>
     </div>
   </form>

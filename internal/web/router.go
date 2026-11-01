@@ -16,12 +16,17 @@ func (s *Server) Handler() http.Handler {
 
 	// Public, cacheable
 	mux.HandleFunc("GET /{$}", s.handleIndex)
-	mux.HandleFunc("GET /games/{game}", s.handleGame)                // /games/{id}-{slug}; /games/{id} redirects
-	mux.HandleFunc("GET /games/{game}/reports/{id}", s.handleReport) // canonical report permalink
-	mux.HandleFunc("GET /reports/{id}", s.handleReport)              // short form, redirects to canonical
+	mux.HandleFunc("GET /games/{game}", s.handleGameRoute)                // /games/{id}-{slug}; /games/{id} redirects; ".json" twin
+	mux.HandleFunc("GET /games/{game}/reports/{id}", s.handleReportRoute) // canonical report permalink; ".json" twin
+	mux.HandleFunc("GET /reports/{id}", s.handleReportRoute)              // short form, redirects to canonical
 	mux.HandleFunc("GET /about", s.handleAbout)
 	mux.HandleFunc("GET /triage", s.handleTriageDoc)
 	mux.HandleFunc("GET /privacy", s.handlePrivacy)
+	// Machine-readable twins (".json" beside each page), same purge set as the pages.
+	mux.HandleFunc("GET /llms.txt", s.handleLLMs)
+	mux.HandleFunc("GET /games.json", s.handleGamesJSON)
+	mux.HandleFunc("GET /reports.json", s.handleRecentJSON)
+	mux.HandleFunc("GET /versions.json", s.handleVersionsJSON)
 	mux.HandleFunc("GET /covers/{file}", s.handleCover)
 	mux.HandleFunc("GET /static/{version}/{path...}", s.handleStatic)
 	mux.HandleFunc("GET /robots.txt", func(w http.ResponseWriter, r *http.Request) {

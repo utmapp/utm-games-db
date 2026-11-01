@@ -62,7 +62,7 @@ func (s *Server) handleStar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if g, err := s.Store.GetGame(r.Context(), id); err == nil {
-		s.Purger.Purge("/", g.Path()) // the canonical page; /games/{id} only redirects
+		s.Purger.Purge(store.PagesForGame(g.ID, g.Slug)...)
 	}
 	s.respondToggle(w, r, on, count, "", http.StatusOK, store.GamePath(id, ""))
 }
@@ -113,12 +113,14 @@ func (s *Server) handlePlusOne(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	back, gamePath, err := s.Store.ReportPaths(r.Context(), id)
+	back, _, err := s.Store.ReportPaths(r.Context(), id)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	s.Purger.Purge("/", back, gamePath)
+	if rep, err := s.Store.GetReport(r.Context(), id); err == nil {
+		s.Purger.Purge(store.PagesForReport(rep.GameID, rep.GameSlug, rep.ID)...)
+	}
 	s.respondToggle(w, r, on, count, "", http.StatusOK, back)
 }
 
@@ -206,7 +208,7 @@ func (s *Server) handleCommentCreate(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.Purger.Purge("/", rep.GamePath(), back)
+	s.Purger.Purge(store.PagesForReport(rep.GameID, rep.GameSlug, rep.ID)...)
 	cdn.Private(w)
 	http.Redirect(w, r, fmt.Sprintf("%s#comment-%d", back, cid), http.StatusSeeOther)
 }

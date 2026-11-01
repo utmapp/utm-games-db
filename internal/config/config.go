@@ -55,6 +55,7 @@ type Config struct {
 	// Sign-in hardening.
 	LoginPoWBits         int
 	LoginFormMinAge      time.Duration
+	ContentFormMinAge    time.Duration // report forms submitted faster than this are refused
 	LoginFormMaxAge      time.Duration
 	LoginWorkers         int
 	LoginQueueSize       int
@@ -307,6 +308,7 @@ func Load() (*Config, error) {
 	}
 	c.LoginPoWBits = getInt("LOGIN_POW_BITS", 16)
 	c.LoginFormMinAge = getDur("LOGIN_FORM_MIN_AGE", 2*time.Second)
+	c.ContentFormMinAge = getDur("CONTENT_FORM_MIN_AGE", 3*time.Second)
 	c.LoginFormMaxAge = getDur("LOGIN_FORM_MAX_AGE", time.Hour)
 	c.LoginWorkers = getInt("LOGIN_WORKERS", 2)
 	c.LoginQueueSize = getInt("LOGIN_QUEUE_SIZE", 256)
