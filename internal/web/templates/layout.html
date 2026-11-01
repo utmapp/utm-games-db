@@ -124,7 +124,7 @@
     <option value="">Choose the version you tested with…</option>
     {{range .Versions}}<option value="{{.ID}}"{{if eq (printf "%d" .ID) $.Values.utm_version_id}} selected{{end}}>{{.Label}}</option>{{end}}
   </select>
-  <span class="hint">Find it in <strong>UTM → About UTM</strong> on macOS, or <strong>Settings → About</strong> on iOS. If your version is missing, update UTM first.</span>
+  <span class="hint">Find it in <strong>UTM → About UTM</strong>. If your version is missing, update UTM first.</span>
   {{with index .Errors "utm_version_id"}}<span class="error">{{.}}</span>{{end}}
 </div>
 <div data-when="version">
@@ -159,7 +159,7 @@
 <div class="field{{if index .Errors "macos_version"}} has-error{{end}}">
   <label for="{{.Prefix}}macos_version">macOS version <span class="faint">(optional)</span></label>
   <input class="input" id="{{.Prefix}}macos_version" name="macos_version" value="{{.Values.macos_version}}" placeholder="e.g. 15.1" maxlength="40">
-  <span class="hint">Apple menu → <strong>About This Mac</strong>. On iPad: Settings → General → About.</span>
+  <span class="hint">Apple menu → <strong>About This Mac</strong>.</span>
   {{with index .Errors "macos_version"}}<span class="error">{{.}}</span>{{end}}
 </div>
 <div class="grid-2">

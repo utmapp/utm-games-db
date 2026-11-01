@@ -83,7 +83,7 @@ func seed(cfg *config.Config, log *slog.Logger, args []string) error {
 	log.Info("versions ready", "count", len(versions))
 
 	// --- users ----------------------------------------------------------------
-	names := []string{"pixelpilot", "vm_wanderer", "metalhead", "dxmt_fan", "retro_rob", "linux_lara", "m3max_mike", "ipad_ivy", "shader_sam", "glitchhunter", "speedrun_sue", "casual_cal"}
+	names := []string{"pixelpilot", "vm_wanderer", "metalhead", "dxmt_fan", "retro_rob", "linux_lara", "m3max_mike", "mini_mia", "shader_sam", "glitchhunter", "speedrun_sue", "casual_cal"}
 	users := make([]*store.User, 0, len(names))
 	for _, n := range names {
 		u, err := st.GetOrCreateUser(ctx, keys.HashEmail(n+"@example.com"))
@@ -165,7 +165,7 @@ func seed(cfg *config.Config, log *slog.Logger, args []string) error {
 		"Auto-Triage: reproduced, and a fix for the shader cache invalidation is in progress. Will report back here.",
 	}
 	distros := [][2]string{{"Ubuntu", "24.04"}, {"Fedora", "40"}, {"Arch Linux", "rolling"}, {"Debian", "12"}}
-	devices := [][2]string{{"MacBook Pro 14-inch 2023", "M3 Pro"}, {"MacBook Air 2022", "M2"}, {"Mac mini 2023", "M2 Pro"}, {"Mac Studio 2023", "M2 Max"}, {"MacBook Pro 16-inch 2024", "M4 Max"}, {"iPad Pro 13-inch", "M4"}}
+	devices := [][2]string{{"MacBook Pro 14-inch 2023", "M3 Pro"}, {"MacBook Air 2022", "M2"}, {"Mac mini 2023", "M2 Pro"}, {"Mac Studio 2023", "M2 Max"}, {"MacBook Pro 16-inch 2024", "M4 Max"}, {"iMac 24-inch 2024", "M4"}}
 	macs := []string{"15.1", "15.0", "14.6.1", "15.2", "26.0"}
 
 	randomConfig := func(v store.UTMVersion) store.ConfigInput {
