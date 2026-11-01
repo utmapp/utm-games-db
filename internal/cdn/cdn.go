@@ -16,11 +16,13 @@ import (
 	"time"
 )
 
-// Public marks a response as shareable. max-age=0 keeps browsers revalidating
-// (so a user who just posted sees fresh content) while s-maxage lets the CDN
-// serve it for sMaxAge seconds.
+// Public marks a response as shareable. Browsers get max-age=0 with
+// must-revalidate, so a navigation always checks with the server (a 304
+// against the ETag) instead of showing a stale copy; the CDN keeps the page
+// for s-maxage. stale-while-revalidate is deliberately absent: browsers
+// honour it too and would show the old page until the next visit.
 func Public(w http.ResponseWriter, sMaxAge int) {
-	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=0, s-maxage=%d, stale-while-revalidate=86400", sMaxAge))
+	w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=0, must-revalidate, s-maxage=%d", sMaxAge))
 	w.Header().Set("Vary", "Accept-Encoding")
 }
 
