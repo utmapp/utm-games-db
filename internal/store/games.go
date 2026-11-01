@@ -120,15 +120,25 @@ func (s *Store) SearchCatalog(ctx context.Context, q string, limit int) ([]Catal
 	// Only things one can install and play on their own are offered: base
 	// games (and their remakes, remasters, ports, expanded and standalone
 	// editions) first, then DLC, expansions and bundles. Seasons, updates,
-	// packs, mods, episodes and forks are left out. Within a tier: FTS
-	// relevance, games that already have reports, then newest.
+	// packs, mods, episodes and forks are left out. Within a tier the title
+	// decides: an exact title (or exact alternative title), then titles
+	// that begin with the query as whole words, then shorter titles, then
+	// full-text relevance with the title weighted far above alternative
+	// names (which include things like executable names), then games that
+	// already have reports, then newest.
+	typed := strings.ToLower(strings.Join(strings.Fields(q), " "))
 	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT g.id, g.name, g.slug, COALESCE(g.first_release_date, 0), COALESCE(t.type, ''), a.igdb_game_id IS NOT NULL
 		FROM igdb_games_fts f JOIN igdb_games g ON g.id = f.rowid
 		LEFT JOIN igdb_game_types t ON t.id = g.game_type_id
 		LEFT JOIN games a ON a.igdb_game_id = g.id
-		WHERE igdb_games_fts MATCH ? AND COALESCE(g.game_type_id, 0) IN (`+searchableTypes+`)
-		ORDER BY (COALESCE(g.game_type_id, 0) IN (`+addonTypes+`)), bm25(igdb_games_fts), (a.igdb_game_id IS NOT NULL) DESC, g.first_release_date DESC
-		LIMIT ?`, match, limit)
+		WHERE igdb_games_fts MATCH ?1 AND COALESCE(g.game_type_id, 0) IN (`+searchableTypes+`)
+		ORDER BY (COALESCE(g.game_type_id, 0) IN (`+addonTypes+`)),
+			(lower(g.name) = ?2 OR instr(char(10) || lower(g.alt_names) || char(10), char(10) || ?2 || char(10)) > 0) DESC,
+			(instr(lower(g.name), ?2) = 1 AND substr(lower(g.name), length(?2) + 1, 1) NOT GLOB '[a-z0-9]') DESC,
+			length(g.name),
+			bm25(igdb_games_fts, 10.0, 1.0),
+			(a.igdb_game_id IS NOT NULL) DESC, g.first_release_date DESC
+		LIMIT ?3`, match, typed, limit)
 	if err != nil {
 		return nil, err
 	}

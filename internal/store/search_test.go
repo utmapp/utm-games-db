@@ -72,4 +72,24 @@ func TestSearchCatalogTypes(t *testing.T) {
 	if hits, _ := New(d).SearchCatalog(ctx, "ow2", 5); len(hits) != 1 || hits[0].ID != 8 {
 		t.Fatalf("acronym search: %+v", hits)
 	}
+	// The exact title comes first, then titles starting with the query,
+	// whatever the full-text score says (alternative names such as
+	// executable names would otherwise push "PortalBox" above "Portal").
+	for _, r := range []struct {
+		id   int64
+		name string
+		alt  string
+	}{{20, "Portal", "传送门\nhl2.exe"}, {21, "PortalBox", "PortalBox.exe"}, {22, "Portal 2", "Portal2.exe"}, {23, "Ecto Portal", ""}} {
+		if _, err := d.Writer.ExecContext(ctx, `INSERT INTO igdb_games (id, name, alt_names, slug, game_type_id, first_release_date, raw_json, synced_at) VALUES (?, ?, ?, ?, 0, ?, '{}', 0)`, r.id, r.name, r.alt, r.name, 1500000000+r.id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hits, _ = New(d).SearchCatalog(ctx, "portal", 10)
+	got = got[:0]
+	for _, h := range hits {
+		got = append(got, h.ID)
+	}
+	if len(got) < 4 || got[0] != 20 || got[1] != 22 {
+		t.Fatalf("portal search order %v; want Portal, then Portal 2 first", got)
+	}
 }
