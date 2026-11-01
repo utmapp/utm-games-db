@@ -187,8 +187,14 @@ func serve(cfg *config.Config, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Background jobs.
-	go runPeriodic(ctx, log, "igdb sync", cfg.IGDBSyncInterval, cfg.IGDBSyncOnStart, func(ctx context.Context) error {
+	// Background jobs. An empty catalog is filled right away regardless of
+	// IGDB_SYNC_ON_START; nothing can be reported until it exists.
+	var catalog int64
+	d.Reader.QueryRowContext(ctx, `SELECT COUNT(*) FROM igdb_games`).Scan(&catalog)
+	if catalog == 0 && sy.Client.Configured() {
+		log.Info("catalog is empty; importing it now")
+	}
+	go runPeriodic(ctx, log, "igdb sync", cfg.IGDBSyncInterval, cfg.IGDBSyncOnStart || catalog == 0, func(ctx context.Context) error {
 		if !sy.Client.Configured() {
 			return errors.New("IGDB credentials not configured")
 		}
