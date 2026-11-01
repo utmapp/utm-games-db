@@ -86,7 +86,7 @@ func newEnv(t *testing.T) *env {
 	os.Setenv("BASE_URL", "http://games.test")
 	os.Setenv("DATA_DIR", dir)
 	os.Setenv("MAIL_MODE", "log")
-	os.Setenv("TRIAGE_GIFT_ACCOUNTS", `[{"storefront":"steam","label":"Steam: utm-triage","email":"steam-gifts@example.com","url":"https://steamcommunity.com/id/utm-triage"},{"storefront":"gog","label":"GOG: utm-triage","url":"https://www.gog.com/u/utm-triage"}]`)
+	os.Setenv("TRIAGE_GIFT_ACCOUNTS", `[{"storefront":"steam","account":"utm-triage","email":"steam-gifts@example.com","url":"https://steamcommunity.com/id/utm-triage"},{"storefront":"gog","account":"utm-triage","url":"https://www.gog.com/u/utm-triage"}]`)
 	os.Setenv("IGDB_CLIENT_ID", "cid")
 	os.Setenv("IGDB_CLIENT_SECRET", "sec")
 	os.Setenv("UPLOAD_QUOTA_DAILY_FILES", "3")
@@ -627,11 +627,11 @@ func TestEndToEnd(t *testing.T) {
 	}
 	// Gift accounts are offered only for storefronts the game is sold on.
 	_, body = bob.get("/games/2/donate")
-	if !strings.Contains(body, "Steam: utm-triage") || !strings.Contains(body, `data-store="steam"`) || !strings.Contains(body, "store.steampowered.com/app/220") || !strings.Contains(body, "Gift email: <strong>steam-gifts@example.com") || strings.Contains(body, "GOG: utm-triage") {
+	if !strings.Contains(body, "Account: <strong>utm-triage") || !strings.Contains(body, `data-store="steam"`) || !strings.Contains(body, "store.steampowered.com/app/220") || !strings.Contains(body, "Gift email: <strong>steam-gifts@example.com") || strings.Contains(body, "GOG: utm-triage") {
 		t.Error("triage form should offer the Steam account only")
 	}
 	_, body = bob.get("/games/3/donate")
-	if strings.Contains(body, "I can gift") || strings.Contains(body, "Steam: utm-triage") || !strings.Contains(body, `value="demo" checked`) {
+	if strings.Contains(body, "I can gift") || strings.Contains(body, "Account: <strong>utm-triage") || !strings.Contains(body, `value="demo" checked`) {
 		t.Error("triage form without matching storefront should offer only a demo")
 	}
 	if resp, _ := bob.postForm("/games/3/donate", url.Values{"kind": {"gift"}, "storefront": {"steam"}}, false); resp.StatusCode != 400 {

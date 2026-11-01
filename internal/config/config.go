@@ -22,7 +22,7 @@ import (
 // Auto-Triage agent can test them.
 type GiftAccount struct {
 	Storefront string `json:"storefront"` // steam, gog, epic, itch, other
-	Label      string `json:"label"`      // human readable account name
+	Account    string `json:"account"`    // account name on the storefront (optional)
 	URL        string `json:"url"`        // profile / wishlist URL
 	Email      string `json:"email"`      // address gifts can be sent to (storefronts that gift by email)
 	// Instructions overrides the built-in gifting steps shown for this

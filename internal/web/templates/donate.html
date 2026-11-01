@@ -20,9 +20,10 @@
       {{if not .GiftOptions}}<p class="muted small" style="margin-top:10px">This game is not listed on a supported storefront. You can submit a link to a free demo.</p>{{end}}
       <div style="margin-top:18px">
         {{if .GiftOptions}}<div class="field" data-when="gift"><span class="label">Which supported storefront will you gift from?</span>
-          <div class="choices">{{range .GiftOptions}}<label class="choice"><input type="radio" name="storefront" value="{{.Storefront}}"{{if eq $.Values.storefront .Storefront}} checked{{end}}> <span>{{.Label}}{{if .URL}}<small><a href="{{.URL}}" rel="noopener" target="_blank">{{.URL}}</a></small>{{end}}</span></label>{{end}}</div>
+          <div class="choices">{{range .GiftOptions}}<label class="choice"><input type="radio" name="storefront" value="{{.Storefront}}"{{if eq $.Values.storefront .Storefront}} checked{{end}}> <span>{{.StoreLabel}}{{if .URL}}<small><a href="{{.URL}}" rel="noopener" target="_blank">{{.URL}}</a></small>{{end}}</span></label>{{end}}</div>
           {{range .GiftOptions}}<div class="gift-steps" data-store="{{.Storefront}}" hidden>
             <a class="btn btn-primary" href="{{.StoreURL}}" target="_blank" rel="noopener">Open on {{.StoreLabel}} <i class="fas fa-arrow-up-right-from-square"></i></a>
+            {{if .Account}}<p class="small">Account: <strong>{{.Account}}</strong></p>{{end}}
             {{if .Email}}<p class="small">Gift email: <strong>{{.Email}}</strong></p>{{end}}
             <p class="small">{{.Instructions}}</p>
           </div>{{end}}
