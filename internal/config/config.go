@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/mail"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -68,13 +70,18 @@ type Config struct {
 	// every request instead of the embedded copies (development only).
 	DevReload bool
 
-	MailMode string // "smtp" or "log"
+	MailMode string // "smtp", "direct" or "log"
 	SMTPHost string
 	SMTPPort int
 	SMTPUser string
 	SMTPPass string
-	SMTPFrom string
-	SMTPTLS  string // "starttls", "tls", "none"
+	MailFrom string // From header in every mode; in direct mode its domain is the SPF/DKIM/DMARC domain
+	// Direct delivery (MAIL_MODE=direct).
+	MailHELO         string        // hostname announced to receiving servers; A record + PTR of the sending IP must match
+	MailDKIMSelector string        // <selector>._domainkey.<from domain>
+	MailDKIMKey      string        // PEM private key path
+	MailRetryFor     time.Duration // how long temporary refusals are retried
+	SMTPTLS          string        // "starttls", "tls", "none"
 
 	AkismetKey        string
 	AkismetFailClosed bool
@@ -212,17 +219,30 @@ func Load() (*Config, error) {
 	}
 
 	c.MailMode = strings.ToLower(get("MAIL_MODE", "log"))
-	if c.MailMode != "smtp" && c.MailMode != "log" {
-		errs = append(errs, fmt.Errorf("MAIL_MODE must be smtp or log"))
+	if c.MailMode != "smtp" && c.MailMode != "direct" && c.MailMode != "log" {
+		errs = append(errs, fmt.Errorf("MAIL_MODE must be smtp, direct or log"))
+	}
+	c.MailFrom = get("MAIL_FROM", "UTM Games Database <no-reply@getutm.app>")
+	if _, err := mail.ParseAddress(c.MailFrom); err != nil {
+		errs = append(errs, fmt.Errorf("MAIL_FROM: %w", err))
 	}
 	c.SMTPHost = get("SMTP_HOST", "")
 	c.SMTPPort = getInt("SMTP_PORT", 587)
 	c.SMTPUser = get("SMTP_USER", "")
 	c.SMTPPass = get("SMTP_PASS", "")
-	c.SMTPFrom = get("SMTP_FROM", "UTM Games Database <no-reply@getutm.app>")
 	c.SMTPTLS = strings.ToLower(get("SMTP_TLS", "starttls"))
 	if c.MailMode == "smtp" && c.SMTPHost == "" {
 		errs = append(errs, errors.New("SMTP_HOST is required when MAIL_MODE=smtp"))
+	}
+	c.MailHELO = get("MAIL_HELO", "")
+	c.MailDKIMSelector = get("MAIL_DKIM_SELECTOR", "utmdb")
+	c.MailDKIMKey = get("MAIL_DKIM_KEY", "")
+	c.MailRetryFor = getDur("MAIL_RETRY_FOR", 8*time.Minute)
+	if c.MailDKIMKey == "" {
+		c.MailDKIMKey = filepath.Join(c.DataDir, "dkim", c.MailDKIMSelector+".key")
+	}
+	if c.MailMode == "direct" && c.MailHELO == "" {
+		errs = append(errs, errors.New("MAIL_HELO is required when MAIL_MODE=direct (a DNS-only hostname of the sending address)"))
 	}
 
 	c.AkismetKey = get("AKISMET_KEY", "")
@@ -292,7 +312,7 @@ func Load() (*Config, error) {
 	c.LoginQueueSize = getInt("LOGIN_QUEUE_SIZE", 256)
 	c.LoginGlobalPerMinute = getInt("LOGIN_GLOBAL_PER_MINUTE", 30)
 	c.LoginGlobalPerHour = getInt("LOGIN_GLOBAL_PER_HOUR", 300)
-	c.LoginMXCheck = getBool("LOGIN_MX_CHECK", c.MailMode == "smtp")
+	c.LoginMXCheck = getBool("LOGIN_MX_CHECK", c.MailMode != "log")
 	c.ExportInterval = getDur("EXPORT_INTERVAL", 24*time.Hour)
 	c.ExportMinAttachmentAge = getDur("EXPORT_MIN_ATTACHMENT_AGE", 48*time.Hour)
 

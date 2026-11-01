@@ -146,7 +146,7 @@ func (q *LoginQueue) process(req LoginRequest) {
 		return
 	}
 	if err := q.Mailer.Send(ctx, req.Email, "Your UTM Database sign-in code", CodeBody(code, q.SiteHost, q.CodeTTL)); err != nil {
-		q.Log.Error("send sign-in code", "id", HashPrefix(emailHash), "err", redactAddress(err, req.Email))
+		q.Log.Error("send sign-in code", "id", HashPrefix(emailHash), "err", mail.RedactAddress(err, req.Email))
 		return
 	}
 	q.Log.Info("sign-in code sent", "id", HashPrefix(emailHash))
@@ -207,14 +207,6 @@ func defaultLookupMX(ctx context.Context, domain string) (bool, error) {
 		return false, nil
 	}
 	return false, err
-}
-
-// redactAddress removes the address from an error message before logging.
-func redactAddress(err error, email string) string {
-	if err == nil {
-		return ""
-	}
-	return strings.ReplaceAll(err.Error(), email, "[address]")
 }
 
 // --- single-use form tokens -----------------------------------------------------

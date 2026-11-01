@@ -33,7 +33,7 @@ MAIL_MODE=log DATA_DIR=./data BASE_URL=http://localhost:8080 ./gamesdb seed     
 MAIL_MODE=log DATA_DIR=./data BASE_URL=http://localhost:8080 ./gamesdb serve
 ```
 
-With `MAIL_MODE=log`, sign-in codes are printed to stdout instead of being emailed (the recipient is withheld). Without `SECRET_KEY` the server uses a built-in development secret and warns; set a real one before any data you care about, since changing it later orphans every account. While editing templates, CSS or JS, start with `DEV_RELOAD=1` (or `make dev`) and the files are re-read from the source tree on every request, so a save plus a browser reload is enough; the production binary embeds them and needs a rebuild. Add at least one UTM version before submitting reports:
+With `MAIL_MODE=log`, sign-in codes are printed to stdout instead of being emailed (the recipient is withheld). In production, mail goes out either directly from the server (`MAIL_MODE=direct`) or through an SMTP relay (`MAIL_MODE=smtp`); both are described in `deploy/README.md`. Without `SECRET_KEY` the server uses a built-in development secret and warns; set a real one before any data you care about, since changing it later orphans every account. While editing templates, CSS or JS, start with `DEV_RELOAD=1` (or `make dev`) and the files are re-read from the source tree on every request, so a save plus a browser reload is enough; the production binary embeds them and needs a rebuild. Add at least one UTM version before submitting reports:
 
 ```sh
 curl -X POST localhost:8081/internal/utm-versions -d '{"version":"4.6.5","released_at":"2025-06-01"}'
@@ -75,14 +75,14 @@ Owned-games entries are matched to catalog games through the storefront ids pars
 ## Layout
 
 ```
-cmd/gamesdb          entrypoint: serve | sync | seed | migrate
+cmd/gamesdb          entrypoint: serve | sync | seed | migrate | mail-setup | mail-test
 internal/config      env configuration (.env is loaded if present)
 internal/db          SQLite open (WAL, single writer pool) + embedded migrations
 internal/igdb        IGDB client (rate limited), catalog sync, detail resolution
 internal/store       typed queries and transactional domain operations
 internal/status      version ordering and status rule (pure, tested)
 internal/auth        email identities (Argon2id), sign-in codes, sessions, sign-in queue and proof of work
-internal/mail        SMTP / log mailer
+internal/mail        direct delivery with DKIM, SMTP relay, or log mailer
 internal/antispam    link check, Akismet, rate limiter
 internal/markdown    goldmark renderer: links disabled for users, allowed for the bot; no images or raw HTML
 internal/upload      attachment validation, storage and download

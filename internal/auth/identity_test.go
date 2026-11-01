@@ -86,9 +86,6 @@ func TestUsedTokens(t *testing.T) {
 }
 
 func TestLoginQueueMXAndRedaction(t *testing.T) {
-	if got := redactAddress(errors.New("550 user alice@example.com unknown"), "alice@example.com"); strings.Contains(got, "alice") {
-		t.Fatalf("address not redacted: %q", got)
-	}
 	q := NewLoginQueue(4, 1)
 	q.Log = slog.Default()
 	q.MXCheck = true

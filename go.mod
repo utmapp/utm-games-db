@@ -3,6 +3,7 @@ module github.com/utmapp/utm-games-db
 go 1.27.3
 
 require (
+	github.com/emersion/go-msgauth v0.7.0
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/wneessen/go-mail v0.8.1
 	github.com/yuin/goldmark v1.8.7

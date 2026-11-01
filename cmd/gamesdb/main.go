@@ -4,6 +4,9 @@
 //	gamesdb sync [--full] [--max-pages N]
 //	gamesdb seed [--force]   fill a development database with sample data
 //	gamesdb migrate          apply database migrations and exit
+//	gamesdb mail-setup [--ip ADDR] [--check]
+//	                         create the DKIM key and print (or verify) the DNS records for direct mail
+//	gamesdb mail-test ADDR   send a test sign-in code through the configured mailer
 package main
 
 import (
@@ -29,7 +32,6 @@ import (
 	"github.com/utmapp/utm-games-db/internal/db"
 	"github.com/utmapp/utm-games-db/internal/igdb"
 	"github.com/utmapp/utm-games-db/internal/internalapi"
-	"github.com/utmapp/utm-games-db/internal/mail"
 	"github.com/utmapp/utm-games-db/internal/store"
 	"github.com/utmapp/utm-games-db/internal/upload"
 	"github.com/utmapp/utm-games-db/internal/web"
@@ -61,6 +63,10 @@ func main() {
 			d.Close()
 			log.Info("migrations applied", "db", dbPath(cfg))
 		}
+	case "mail-setup":
+		err = mailSetup(cfg, os.Args[2:])
+	case "mail-test":
+		err = mailTest(cfg, log, os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)
@@ -72,7 +78,7 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: gamesdb serve | sync [--full] [--max-pages N] | seed [--force] | migrate")
+	fmt.Fprintln(os.Stderr, "usage: gamesdb serve | sync [--full] [--max-pages N] | seed [--force] | migrate | mail-setup [--ip ADDR] [--check] | mail-test ADDR")
 }
 
 func dbPath(cfg *config.Config) string { return filepath.Join(cfg.DataDir, "gamesdb.sqlite") }
@@ -135,12 +141,9 @@ func serve(cfg *config.Config, log *slog.Logger) error {
 	st := store.New(d)
 	keys := auth.NewKeys(cfg.SecretKey)
 	au := &auth.Service{DB: d, Store: st, CodeTTL: cfg.LoginCodeTTL, SessionTTL: cfg.SessionTTL, Secure: cfg.CookieSecure, Keys: keys}
-	var mailer mail.Mailer
-	if cfg.MailMode == "smtp" {
-		mailer = mail.SMTPMailer{Host: cfg.SMTPHost, Port: cfg.SMTPPort, User: cfg.SMTPUser, Pass: cfg.SMTPPass, From: cfg.SMTPFrom, TLS: cfg.SMTPTLS}
-	} else {
-		mailer = mail.LogMailer{Log: log}
-		log.Warn("MAIL_MODE=log: sign-in codes are printed to stdout instead of emailed")
+	mailer, err := newMailer(cfg, log, cfg.MailRetryFor)
+	if err != nil {
+		return err
 	}
 	if cfg.BaseURL.Scheme == "https" && len(cfg.TrustedProxyCIDRs) == 0 {
 		log.Warn("TRUSTED_PROXY_CIDRS is empty: behind a CDN every visitor shares the proxy's IP, so per-IP rate limits (including sign-in) will lock everyone out together and Akismet sees the wrong address. Set it to the CDN's IP ranges.")

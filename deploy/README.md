@@ -59,7 +59,42 @@ What ends up where:
 | `/usr/local/sbin/cloudflare-ips.sh`, `/Library/LaunchDaemons/app.getutm.cloudflare-ips.plist` | root | refreshes the Cloudflare table on the first of each month (root-owned so the service user cannot widen it) |
 | `/etc/newsyslog.d/gamesdb.conf` | root | weekly log rotation; it restarts the service (via `~/gamesdb/data/gamesdb.pid`) so the new file is picked up |
 
-Day to day: `launchctl kickstart -k gui/$(id -u)/app.getutm.db` restarts the service, `tail -f ~/gamesdb/log/gamesdb.log` follows it, and `sudo pfctl -a gamesdb -s rules` shows the firewall rules (loopback stays open, so `curl -k https://127.0.0.1/healthz` works on the box). The internal API stays on loopback: `ssh -L 8081:127.0.0.1:8081 user@mac` and then `curl localhost:8081/internal/healthz`. Back up `~/gamesdb/data` (SQLite via `sqlite3 gamesdb.sqlite ".backup out.sqlite"`, plus `uploads/` and `covers/`) together with `SECRET_KEY`. Because the agent lives in the login session, the site is down while nobody is logged in; the auto-login makes that only the seconds after a reboot. Nothing here lives in files macOS updates replace, so an update needs no re-setup. If MacStadium's own firewall is available, add the same Cloudflare allowlist there too.
+Day to day: `launchctl kickstart -k gui/$(id -u)/app.getutm.db` restarts the service, `tail -f ~/gamesdb/log/gamesdb.log` follows it, and `sudo pfctl -a gamesdb -s rules` shows the firewall rules (loopback stays open, so `curl -k https://127.0.0.1/healthz` works on the box). The internal API stays on loopback: `ssh -L 8081:127.0.0.1:8081 user@mac` and then `curl localhost:8081/internal/healthz`. Back up `~/gamesdb/data` (SQLite via `sqlite3 gamesdb.sqlite ".backup out.sqlite"`, plus `uploads/` and `covers/`) together with `SECRET_KEY`. Because the agent lives in the login session, the site is down while nobody is logged in; the auto-login makes that only the seconds after a reboot. Nothing here lives in files macOS updates replace, so an update needs no re-setup. If the hosting provider offers its own firewall, add the same Cloudflare allowlist there too.
+
+## Sending mail directly
+
+Sign-in codes can be delivered by the server itself instead of through an SMTP relay. With `MAIL_MODE=direct` it looks up the recipient domain's mail servers, connects on port 25 with STARTTLS where offered, signs every message with DKIM, and retries temporary refusals (greylisting) every 90 seconds in the background for `MAIL_RETRY_FOR`, which should stay below `LOGIN_CODE_TTL`. For receivers to trust the mail, DNS has to let them verify the signature (DKIM), the sending address (SPF), and that both agree with the From domain (DMARC), and the sending address needs reverse DNS. The requirements on the host are outbound port 25 and a public IP whose reverse DNS the hosting provider will set.
+
+Two names are involved:
+
+- the **From domain**, taken from `MAIL_FROM`, which carries the SPF, DKIM and DMARC records;
+- the **host name** in `MAIL_HELO`, which the server announces to receiving servers. It names the machine, not a service, so anything else on the box that needs reverse DNS shares it. It needs a DNS-only A record to the sending IP, and the IP's reverse DNS must give the same name.
+
+Setup:
+
+1. Set `MAIL_MODE=direct`, `MAIL_FROM`, `MAIL_HELO` and (optionally) `MAIL_DKIM_SELECTOR` in `.env`.
+
+2. Run the setup command as the service user, with the public IP mail is sent from:
+
+   ```sh
+   gamesdb mail-setup --ip <sending IP>
+   ```
+
+   On the first run it creates the DKIM key at `DATA_DIR/dkim/<selector>.key`; the key is never overwritten, since a new one invalidates the published record, so back it up with `SECRET_KEY`. It then checks DNS and prints every record that is missing or wrong, with the exact value to publish: the A and SPF records for the host name, SPF for the From domain, the DKIM public key, and DMARC. The DKIM value is longer than 255 characters; DNS editors split it, so paste it whole.
+
+3. Create the printed records (the A record with any CDN proxying off) and ask the hosting provider to set the reverse DNS of the sending IP to the host name. Providers verify that the name resolves to the IP first, so create the A record before asking.
+
+4. Re-run the setup command until it reports that every record is in place; propagation can take a while.
+
+5. Send a test message to a mailbox you can read, then restart the service:
+
+   ```sh
+   gamesdb mail-test you@example.com
+   ```
+
+   The message carries the fixed code 123456 in the same format as real sign-in mail, so it also shows whether the mail client offers the code for autofill. In Gmail, "Show original" should list SPF, DKIM and DMARC as PASS.
+
+Nothing receives mail at the From address; replies and bounces are dropped by the receiving side.
 
 ## Cloudflare zone
 
