@@ -232,7 +232,8 @@ type reportOpts struct {
 	files   map[string][]byte
 	issue   string
 	guestOS string
-	path    string // defaults to /reports/new
+	path    string            // defaults to /reports/new
+	extra   map[string]string // further form fields
 }
 
 func (c *client) submitReport(o reportOpts) (*http.Response, string) {
@@ -252,6 +253,9 @@ func (c *client) submitReport(o reportOpts) (*http.Response, string) {
 	}
 	if o.rating == "gold" {
 		fields["completion_confirmed"] = "1"
+	}
+	for k, v := range o.extra {
+		fields[k] = v
 	}
 	for k, v := range fields {
 		mw.WriteField(k, v)

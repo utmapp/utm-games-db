@@ -35,6 +35,7 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"user":      map[string]any{"id": u.ID, "display_name": u.DisplayName},
+		"host":      u.Host,
 		"stars":     stars,
 		"plus_ones": plus,
 	})
@@ -189,6 +190,9 @@ func (s *Server) handleCommentCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cid, err := s.Store.AddComment(r.Context(), in)
+	if err == nil && in.Config != nil {
+		s.saveHostIfAsked(r, u.ID, *in.Config)
+	}
 	if errors.Is(err, store.ErrNotFound) {
 		s.notFound(w, r)
 		return

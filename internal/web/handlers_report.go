@@ -97,6 +97,7 @@ func (s *Server) handleReportNew(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	hostValues(page.Values, auth.UserFrom(r.Context()).Host)
 	q := r.URL.Query()
 	if gid, _ := strconv.ParseInt(q.Get("game"), 10, 64); gid > 0 {
 		if err := s.loadFormGame(r, page, gid); err != nil {
@@ -271,6 +272,7 @@ func (s *Server) handleReportCreate(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
+	s.saveHostIfAsked(r, user.ID, in.Config)
 	// Resolve cover art / storefront links when this report activated the
 	// game; later reports reuse them. Best effort and bounded, so a slow IGDB
 	// cannot hold the response: failures are retried by the background
@@ -444,6 +446,7 @@ func (s *Server) handleReportUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Uploads.RemoveAll(removed, s.Log)
+	s.saveHostIfAsked(r, user.ID, in.Config)
 	s.Purger.Purge("/", rep.GamePath(), rep.Path())
 	cdn.Private(w)
 	http.Redirect(w, r, rep.Path(), http.StatusSeeOther)

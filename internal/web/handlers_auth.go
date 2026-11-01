@@ -206,6 +206,8 @@ func (s *Server) renderAccount(w http.ResponseWriter, r *http.Request, code int,
 		flash = "Your deletion request has been sent. A maintainer will review it."
 	case r.URL.Query().Get("attachments_deleted") == "1":
 		flash = "All your attachments have been deleted."
+	case r.URL.Query().Get("host_saved") == "1":
+		flash = "Your Mac has been saved."
 	}
 	page := &accountPage{Page: Page{Title: "Account", Error: errMsg, Flash: flash}, Stars: stars, Reports: reports, Attachments: len(atts), ExportMinAgeHrs: int(s.Cfg.ExportMinAttachmentAge.Hours())}
 	if u.LastExportAt != nil {
@@ -234,4 +236,26 @@ func (s *Server) handleAccountSave(w http.ResponseWriter, r *http.Request) {
 	// (TTL) rather than purging every page the user ever touched.
 	cdn.Private(w)
 	http.Redirect(w, r, "/account", http.StatusSeeOther)
+}
+
+// handleAccountHost saves the Mac configuration entered on the profile.
+func (s *Server) handleAccountHost(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	if err := r.ParseForm(); err != nil {
+		s.renderAccount(w, r, http.StatusBadRequest, "Could not read the form.")
+		return
+	}
+	errs := map[string]string{}
+	h := parseHost(r.PostForm, errs)
+	for _, msg := range errs {
+		s.renderAccount(w, r, http.StatusBadRequest, msg)
+		return
+	}
+	if err := s.Store.SetHostConfig(r.Context(), u.ID, h); err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	cdn.Private(w)
+	http.Redirect(w, r, "/account?host_saved=1", http.StatusSeeOther)
 }

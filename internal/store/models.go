@@ -22,6 +22,20 @@ type User struct {
 	LastLoginAt  time.Time  `json:"last_login_at"`
 	LastExportAt *time.Time `json:"last_export_at,omitempty"`
 	DeletedAt    *time.Time `json:"deleted_at,omitempty"` // account deleted; row kept for moderation
+	Host         HostConfig `json:"host"`                 // the user's Mac, saved on the profile
+}
+
+// HostConfig is the Mac a user runs UTM on, as saved on their profile.
+type HostConfig struct {
+	MacOSVersion string `json:"macos_version"`
+	DeviceModel  string `json:"device_model"`
+	Chip         string `json:"chip"`
+	RAMGB        int    `json:"ram_gb"`
+}
+
+// Empty reports whether nothing has been saved.
+func (h HostConfig) Empty() bool {
+	return h.MacOSVersion == "" && h.DeviceModel == "" && h.Chip == "" && h.RAMGB == 0
 }
 
 // UTMVersion is one entry of the curated release list.

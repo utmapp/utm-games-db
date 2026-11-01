@@ -171,6 +171,7 @@
   <input class="input" id="{{.Prefix}}ram_gb" name="ram_gb" value="{{.Values.ram_gb}}" inputmode="numeric" placeholder="e.g. 32" maxlength="5">
   {{with index .Errors "ram_gb"}}<span class="error">{{.}}</span>{{end}}
 </div>
+<label class="choice"><input type="checkbox" name="save_host" value="1"{{if .Values.save_host}} checked{{end}}> <span>Save to profile<small>Remember this Mac so it is filled in next time.</small></span></label>
 </div>
 {{end}}
 

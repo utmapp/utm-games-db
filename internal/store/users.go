@@ -25,12 +25,12 @@ func New(d *db.DB) *Store { return &Store{DB: d} }
 // ErrNotFound is returned when a row does not exist.
 var ErrNotFound = errors.New("not found")
 
-const userCols = `id, display_name, is_banned, spam_strikes, created_at, COALESCE(last_login_at, 0), COALESCE(last_export_at, 0), COALESCE(deleted_at, 0)`
+const userCols = `id, display_name, is_banned, spam_strikes, created_at, COALESCE(last_login_at, 0), COALESCE(last_export_at, 0), COALESCE(deleted_at, 0), host_macos_version, host_device_model, host_chip, host_ram_gb`
 
 func scanUser(row interface{ Scan(...any) error }) (*User, error) {
 	var u User
 	var created, last, exported, deleted int64
-	if err := row.Scan(&u.ID, &u.DisplayName, &u.Banned, &u.SpamStrikes, &created, &last, &exported, &deleted); err != nil {
+	if err := row.Scan(&u.ID, &u.DisplayName, &u.Banned, &u.SpamStrikes, &created, &last, &exported, &deleted, &u.Host.MacOSVersion, &u.Host.DeviceModel, &u.Host.Chip, &u.Host.RAMGB); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
@@ -122,6 +122,13 @@ func ValidateDisplayName(name string) error {
 		return errors.New("that name is reserved")
 	}
 	return nil
+}
+
+// SetHostConfig saves the user's Mac on their profile.
+func (s *Store) SetHostConfig(ctx context.Context, userID int64, h HostConfig) error {
+	_, err := s.DB.Writer.ExecContext(ctx, `UPDATE users SET host_macos_version = ?, host_device_model = ?, host_chip = ?, host_ram_gb = ? WHERE id = ?`,
+		h.MacOSVersion, h.DeviceModel, h.Chip, h.RAMGB, userID)
+	return err
 }
 
 // SetDisplayName changes the public name of a user.

@@ -67,23 +67,64 @@ func parseConfig(v url.Values, errs map[string]string) store.ConfigInput {
 	if !slices.Contains(store.GraphicsBackends(c.GuestOS), c.GraphicsBackend) {
 		errs["graphics_backend"] = "Pick a graphics backend available for this guest OS."
 	}
-	c.MacOSVersion = limitLen(strings.TrimSpace(v.Get("macos_version")), 40)
-	c.DeviceModel = limitLen(strings.TrimSpace(v.Get("device_model")), 80)
-	c.Chip = limitLen(strings.TrimSpace(v.Get("chip")), 40)
-	if ram := strings.TrimSpace(v.Get("ram_gb")); ram != "" {
-		n, err := strconv.Atoi(ram)
-		if err != nil || n <= 0 || n > 4096 {
-			errs["ram_gb"] = "Enter memory in whole gigabytes."
-		} else {
-			c.RAMGB = n
-		}
-	}
-	for _, f := range []struct{ key, val string }{{"linux_distro", c.LinuxDistro}, {"linux_version", c.LinuxVersion}, {"other_os_name", c.OtherOSName}, {"macos_version", c.MacOSVersion}, {"device_model", c.DeviceModel}, {"chip", c.Chip}} {
+	h := parseHost(v, errs)
+	c.MacOSVersion, c.DeviceModel, c.Chip, c.RAMGB = h.MacOSVersion, h.DeviceModel, h.Chip, h.RAMGB
+	for _, f := range []struct{ key, val string }{{"linux_distro", c.LinuxDistro}, {"linux_version", c.LinuxVersion}, {"other_os_name", c.OtherOSName}} {
 		if len(antispam.FindLinks(f.val, 1)) > 0 {
 			errs[f.key] = "Links and HTML are not allowed here."
 		}
 	}
 	return c
+}
+
+// parseHost reads the Mac (host) fields shared by the configuration form
+// and the profile.
+func parseHost(v url.Values, errs map[string]string) store.HostConfig {
+	var h store.HostConfig
+	h.MacOSVersion = limitLen(strings.TrimSpace(v.Get("macos_version")), 40)
+	h.DeviceModel = limitLen(strings.TrimSpace(v.Get("device_model")), 80)
+	h.Chip = limitLen(strings.TrimSpace(v.Get("chip")), 40)
+	if ram := strings.TrimSpace(v.Get("ram_gb")); ram != "" {
+		n, err := strconv.Atoi(ram)
+		if err != nil || n <= 0 || n > 4096 {
+			errs["ram_gb"] = "Enter memory in whole gigabytes."
+		} else {
+			h.RAMGB = n
+		}
+	}
+	for _, f := range []struct{ key, val string }{{"macos_version", h.MacOSVersion}, {"device_model", h.DeviceModel}, {"chip", h.Chip}} {
+		if len(antispam.FindLinks(f.val, 1)) > 0 {
+			errs[f.key] = "Links and HTML are not allowed here."
+		}
+	}
+	return h
+}
+
+// hostValues fills empty host fields of a form from the saved profile.
+func hostValues(v formValues, h store.HostConfig) {
+	set := func(key, val string) {
+		if v[key] == "" && val != "" {
+			v[key] = val
+		}
+	}
+	set("macos_version", h.MacOSVersion)
+	set("device_model", h.DeviceModel)
+	set("chip", h.Chip)
+	if h.RAMGB > 0 {
+		set("ram_gb", strconv.Itoa(h.RAMGB))
+	}
+}
+
+// saveHostIfAsked stores the submitted Mac on the profile when the form's
+// "Save to profile" box was ticked.
+func (s *Server) saveHostIfAsked(r *http.Request, userID int64, c store.ConfigInput) {
+	if r.PostFormValue("save_host") != "1" {
+		return
+	}
+	h := store.HostConfig{MacOSVersion: c.MacOSVersion, DeviceModel: c.DeviceModel, Chip: c.Chip, RAMGB: c.RAMGB}
+	if err := s.Store.SetHostConfig(r.Context(), userID, h); err != nil {
+		s.Log.Warn("save host config", "user", userID, "err", err)
+	}
 }
 
 var reportKeys = append([]string{"rating", "completion_confirmed", "issue_type", "description", "repro", "wine_same_issue"}, configKeys...)

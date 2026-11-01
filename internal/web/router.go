@@ -41,6 +41,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /logout", s.handleLogout)
 	mux.HandleFunc("GET /account", s.requireUser(s.handleAccount))
 	mux.HandleFunc("POST /account", s.requireUser(s.handleAccountSave))
+	mux.HandleFunc("POST /account/host", s.requireUser(s.handleAccountHost))
 	mux.HandleFunc("POST /account/export", s.requireUser(s.handleAccountExport))
 	mux.HandleFunc("POST /account/delete-attachments", s.requireUser(s.handleAccountDeleteAttachments))
 	mux.HandleFunc("POST /account/delete", s.requireUser(s.handleAccountDelete))

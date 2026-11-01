@@ -19,6 +19,15 @@
       }
       nav.replaceChildren(link);
     }
+    // Empty Mac fields on any form take the values saved on the profile.
+    if (me && me.host) {
+      var host = { macos_version: me.host.macos_version, device_model: me.host.device_model, chip: me.host.chip, ram_gb: me.host.ram_gb ? String(me.host.ram_gb) : '' };
+      Object.keys(host).forEach(function (name) {
+        document.querySelectorAll('form input[name="' + name + '"]').forEach(function (input) {
+          if (!input.value && host[name]) input.value = host[name];
+        });
+      });
+    }
     document.querySelectorAll('[data-star-game]').forEach(function (b) {
       var id = Number(b.getAttribute('data-star-game'));
       var on = !!(me && me.stars && me.stars.indexOf(id) >= 0);

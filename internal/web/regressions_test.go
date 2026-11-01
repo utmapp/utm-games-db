@@ -289,3 +289,45 @@ func TestHSTSOnlyOverHTTPS(t *testing.T) {
 		}
 	}
 }
+
+// A Mac saved on the profile prefills the report form, is exposed to the
+// page script through /api/me, and "Save to profile" on a report updates it.
+func TestSavedHostConfig(t *testing.T) {
+	e := newEnv(t)
+	alice := e.newClient()
+	alice.login("alice@example.com")
+	if _, body := alice.get("/reports/new?game=1"); strings.Contains(body, `value="15.1"`) {
+		t.Fatal("fresh profile should not prefill anything")
+	}
+	if resp, _ := alice.postForm("/account/host", url.Values{"macos_version": {"15.1"}, "device_model": {"Mac mini"}, "chip": {"M4"}, "ram_gb": {"24"}}, false); resp.StatusCode != 303 {
+		t.Fatalf("save host = %d", resp.StatusCode)
+	}
+	if resp, _ := alice.postForm("/account/host", url.Values{"ram_gb": {"lots"}}, false); resp.StatusCode != 400 {
+		t.Fatalf("bad memory should be rejected: %d", resp.StatusCode)
+	}
+	_, body := alice.get("/account")
+	for _, want := range []string{`value="15.1"`, `value="Mac mini"`, `value="M4"`, `value="24"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("account page lacks %s", want)
+		}
+	}
+	if _, body := alice.get("/reports/new?game=1"); !strings.Contains(body, `name="macos_version" value="15.1"`) || !strings.Contains(body, `name="ram_gb" value="24"`) || !strings.Contains(body, `name="save_host"`) {
+		t.Error("report form should be prefilled from the profile and offer to save")
+	}
+	if _, body := alice.get("/api/me"); !strings.Contains(body, `"host":{"macos_version":"15.1","device_model":"Mac mini","chip":"M4","ram_gb":24}`) {
+		t.Errorf("api/me lacks host: %s", body)
+	}
+	// Submitting a report with other values and the box ticked updates the profile.
+	if resp, body := alice.submitReport(reportOpts{gameID: 1, verID: e.verID, rating: "playable", desc: "Runs well.", extra: map[string]string{"macos_version": "26.1", "chip": "M5", "save_host": "1"}}); resp.StatusCode != 303 {
+		t.Fatalf("report: %d %s", resp.StatusCode, body)
+	}
+	u, _ := e.st.GetUser(context.Background(), 1)
+	if u.Host.MacOSVersion != "26.1" || u.Host.Chip != "M5" || u.Host.DeviceModel != "MacBook Pro" {
+		t.Fatalf("profile not updated from report: %+v", u.Host)
+	}
+	// Without the box the profile is left alone.
+	alice.submitReport(reportOpts{gameID: 2, verID: e.verID, rating: "playable", desc: "Also fine.", extra: map[string]string{"macos_version": "14.0"}})
+	if u, _ := e.st.GetUser(context.Background(), 1); u.Host.MacOSVersion != "26.1" {
+		t.Fatalf("profile changed without consent: %+v", u.Host)
+	}
+}
