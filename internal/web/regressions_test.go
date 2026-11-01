@@ -3,6 +3,8 @@ package web
 import (
 	"bytes"
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -270,5 +272,20 @@ func TestGoldReportRejectsAttachments(t *testing.T) {
 	}
 	if files, _ := filepath.Glob(filepath.Join(e.s.Uploads.Root, "u*", "*")); len(files) != 0 {
 		t.Fatalf("files stored for a gold report: %v", files)
+	}
+}
+
+// Over https every response tells browsers to keep using https.
+func TestHSTSOnlyOverHTTPS(t *testing.T) {
+	ok := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) })
+	for _, hsts := range []bool{true, false} {
+		rec := httptest.NewRecorder()
+		withSecurityHeaders(ok, hsts).ServeHTTP(rec, httptest.NewRequest("GET", "/", nil))
+		if got := rec.Header().Get("Strict-Transport-Security"); (got != "") != hsts {
+			t.Errorf("hsts=%v: header %q", hsts, got)
+		}
+		if rec.Header().Get("Content-Security-Policy") == "" {
+			t.Error("CSP missing")
+		}
 	}
 }

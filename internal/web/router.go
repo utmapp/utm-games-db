@@ -71,7 +71,7 @@ func (s *Server) Handler() http.Handler {
 	var h http.Handler = mux
 	h = s.withUser(h)
 	h = s.withOriginCheck(h)
-	h = withSecurityHeaders(h)
+	h = withSecurityHeaders(h, s.Cfg.BaseURL.Scheme == "https")
 	h = s.withRecover(h)
 	return h
 }
@@ -149,7 +149,10 @@ func (s *Server) withOriginCheck(next http.Handler) http.Handler {
 	})
 }
 
-func withSecurityHeaders(next http.Handler) http.Handler {
+// withSecurityHeaders adds the response headers every page carries. With
+// hsts (the site is served over https) browsers are told to use https for
+// a year, so a plain-http link can never reach a cached or spoofed page.
+func withSecurityHeaders(next http.Handler, hsts bool) http.Handler {
 	csp := strings.Join([]string{
 		"default-src 'self'",
 		"script-src 'self'",
@@ -167,6 +170,9 @@ func withSecurityHeaders(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("X-Frame-Options", "DENY")
+		if hsts {
+			h.Set("Strict-Transport-Security", "max-age=31536000")
+		}
 		next.ServeHTTP(w, r)
 	})
 }
