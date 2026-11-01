@@ -38,23 +38,10 @@ type indexPage struct {
 // Page number accessor used by templates (field named PageNum to avoid
 // clashing with the embedded Page struct).
 func (p *indexPage) pageURL(n int) string {
-	q := url.Values{}
-	if p.Query != "" {
-		q.Set("q", p.Query)
+	if q := listQuery(p.Query, p.Status, p.Sort, n); q != "" {
+		return "/?" + q
 	}
-	if p.Status != "" {
-		q.Set("status", p.Status)
-	}
-	if p.Sort != "" && p.Sort != "recent" {
-		q.Set("sort", p.Sort)
-	}
-	if n > 1 {
-		q.Set("page", strconv.Itoa(n))
-	}
-	if len(q) == 0 {
-		return "/"
-	}
-	return "/?" + q.Encode()
+	return "/"
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -76,6 +63,18 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	query := strings.TrimSpace(q.Get("q"))
 	if len(query) > 100 {
 		query = query[:100]
+	}
+	// One URL per distinct list: empty, unknown and default parameters are
+	// dropped and the rest put in a fixed order, so the CDN holds one copy
+	// of each list instead of one per spelling of the same request.
+	if canonical := listQuery(query, st, sort, pg); canonical != r.URL.RawQuery {
+		cdn.Public(w, cacheList)
+		target := "/"
+		if canonical != "" {
+			target += "?" + canonical
+		}
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+		return
 	}
 	perPage := s.perPage
 	games, total, err := s.Store.ListGames(r.Context(), store.ListParams{Query: query, Status: st, Sort: sort, Page: pg, PerPage: perPage})
@@ -285,4 +284,25 @@ func (s *Server) handleStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.ServeContent(w, r, p, st.ModTime(), rs)
+}
+
+// listQuery is the canonical query string of a list page: q, status, sort
+// and page, in that order, each only when it carries information.
+func listQuery(query, st, sort string, page int) string {
+	v := url.Values{}
+	if query != "" {
+		v.Set("q", query)
+	}
+	if st != "" {
+		v.Set("status", st)
+	}
+	if sort != "" && sort != "recent" {
+		v.Set("sort", sort)
+	}
+	if page > 1 {
+		v.Set("page", strconv.Itoa(page))
+	}
+	// url.Values.Encode sorts keys alphabetically (page, q, sort, status),
+	// which is as good a fixed order as any.
+	return v.Encode()
 }

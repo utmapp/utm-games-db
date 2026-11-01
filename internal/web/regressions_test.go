@@ -450,3 +450,29 @@ func TestFlagContent(t *testing.T) {
 		t.Fatalf("flags after removal = %d; want 0", count())
 	}
 }
+
+// Every spelling of the same list redirects to one canonical URL, so the
+// CDN caches one copy per list rather than one per form submission.
+func TestListURLsAreCanonical(t *testing.T) {
+	e := newEnv(t)
+	anon := e.newClient()
+	for from, to := range map[string]string{
+		"/?q=&status=&sort=reports":    "/?sort=reports",
+		"/?sort=reports&status=&q=":    "/?sort=reports",
+		"/?sort=recent":                "/",
+		"/?utm_source=twitter":         "/",
+		"/?status=playable&q=+portal+": "/?q=portal&status=playable",
+		"/?page=1":                     "/",
+		"/?status=bogus":               "/",
+	} {
+		resp, _ := anon.get(from)
+		if resp.StatusCode != 301 || resp.Header.Get("Location") != to || !strings.Contains(resp.Header.Get("Cache-Control"), "public") {
+			t.Errorf("%s -> %d %q (%s); want 301 to %s, cacheable", from, resp.StatusCode, resp.Header.Get("Location"), resp.Header.Get("Cache-Control"), to)
+		}
+	}
+	for _, p := range []string{"/", "/?sort=reports", "/?q=portal&status=playable", "/?page=2&sort=stars"} {
+		if resp, _ := anon.get(p); resp.StatusCode != 200 {
+			t.Errorf("canonical %s = %d", p, resp.StatusCode)
+		}
+	}
+}
