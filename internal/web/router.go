@@ -8,6 +8,7 @@ import (
 
 	"github.com/utmapp/utm-games-db/internal/auth"
 	"github.com/utmapp/utm-games-db/internal/cdn"
+	"github.com/utmapp/utm-games-db/internal/store"
 )
 
 // Handler builds the public router with middleware.
@@ -62,6 +63,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /reports/{id}/comments", s.requireUser(s.handleCommentCreate))
 	mux.HandleFunc("POST /reports/{id}/plus-one", s.requireUser(s.handlePlusOne))
 	mux.HandleFunc("POST /games/{id}/star", s.requireUser(s.handleStar))
+	mux.HandleFunc("POST /reports/{id}/flag", s.requireUser(s.handleFlag(store.FlagReport)))
+	mux.HandleFunc("POST /comments/{id}/flag", s.requireUser(s.handleFlag(store.FlagComment)))
 	mux.HandleFunc("GET /games/{id}/donate", s.requireUser(s.handleDonateForm))
 	mux.HandleFunc("POST /games/{id}/donate", s.requireUser(s.handleDonateSubmit))
 	// Attachments have no public URL on purpose: the throttled account export

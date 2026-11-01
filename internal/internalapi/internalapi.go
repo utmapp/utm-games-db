@@ -93,6 +93,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /internal/users", s.listUsers)
 	mux.HandleFunc("POST /internal/users/{id}/ban", s.ban(true))
 	mux.HandleFunc("POST /internal/users/{id}/unban", s.ban(false))
+	mux.HandleFunc("GET /internal/flags", s.listFlags)
+	mux.HandleFunc("POST /internal/flags/{kind}/{id}/ignore", s.ignoreFlags)
 	mux.HandleFunc("GET /internal/spam-log", s.listSpam)
 	mux.HandleFunc("POST /internal/spam-log/{id}/feedback", s.spamFeedback)
 
@@ -733,4 +735,42 @@ func (s *Server) sweep(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ok(w, map[string]any{"removed": n})
+}
+
+// listFlags returns content users have reported, most recently flagged
+// first. Act on the content with the visibility endpoints (removing it
+// deletes its flags), or ignore the flags.
+func (s *Server) listFlags(w http.ResponseWriter, r *http.Request) {
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	items, err := s.Store.ListFlags(r.Context(), limit)
+	if err != nil {
+		failFor(w, err)
+		return
+	}
+	if items == nil {
+		items = []store.FlaggedItem{}
+	}
+	ok(w, map[string]any{"flagged": items})
+}
+
+// ignoreFlags deletes the flags on one report or comment. Nobody is told;
+// the reporters may flag it again.
+func (s *Server) ignoreFlags(w http.ResponseWriter, r *http.Request) {
+	kind := r.PathValue("kind")
+	if kind != store.FlagReport && kind != store.FlagComment {
+		fail(w, http.StatusBadRequest, errors.New("kind must be report or comment"))
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		fail(w, http.StatusBadRequest, errors.New("invalid id"))
+		return
+	}
+	n, err := s.Store.IgnoreFlags(r.Context(), kind, id)
+	if err != nil {
+		failFor(w, err)
+		return
+	}
+	s.Log.Info("flags ignored", "kind", kind, "target", id, "flags", n)
+	ok(w, map[string]any{"kind": kind, "target_id": id, "deleted": n})
 }

@@ -368,3 +368,85 @@ func zipText(t *testing.T, body, name string) string {
 	t.Fatalf("%s not in archive", name)
 	return ""
 }
+
+// Reporting content: one click, not on one's own content, invisible to
+// everyone, idempotent, gone with the content or when ignored.
+func TestFlagContent(t *testing.T) {
+	e := newEnv(t)
+	alice := e.newClient()
+	alice.login("alice@example.com")
+	bob := e.newClient()
+	bob.login("bob@example.com")
+	if resp, _ := alice.submitReport(reportOpts{gameID: 1, verID: e.verID, rating: "playable", desc: "Runs well."}); resp.StatusCode != 303 {
+		t.Fatal("report")
+	}
+	if resp, _ := bob.postForm("/reports/1/comments", url.Values{"body": {"Not for me, it crashes."}}, false); resp.StatusCode != 303 {
+		t.Fatal("comment")
+	}
+	count := func() int {
+		var n int
+		e.d.Reader.QueryRow(`SELECT COUNT(*) FROM content_flags`).Scan(&n)
+		return n
+	}
+	// Own content is refused; a stranger's is recorded once, however often.
+	if resp, _ := alice.postForm("/reports/1/flag", nil, false); resp.StatusCode != 403 {
+		t.Errorf("own report flagged: %d", resp.StatusCode)
+	}
+	if resp, _ := bob.postForm("/reports/1/flag", nil, false); resp.StatusCode != 303 || !strings.HasSuffix(resp.Header.Get("Location"), "/games/1-portal-2/reports/1?reported=1") {
+		t.Fatalf("flag = %d %q", resp.StatusCode, resp.Header.Get("Location"))
+	}
+	bob.postForm("/reports/1/flag", nil, false)
+	if resp, _ := alice.postForm("/comments/1/flag", nil, false); resp.StatusCode != 303 {
+		t.Fatalf("flag comment = %d", resp.StatusCode)
+	}
+	if resp, _ := bob.postForm("/comments/1/flag", nil, false); resp.StatusCode != 403 {
+		t.Errorf("own comment flagged: %d", resp.StatusCode)
+	}
+	if count() != 2 {
+		t.Fatalf("flags = %d; want 2", count())
+	}
+	// Nothing public shows them: the page and its JSON twin are unchanged.
+	anon := e.newClient()
+	for _, p := range []string{"/games/1-portal-2/reports/1", "/games/1-portal-2/reports/1.json"} {
+		if _, body := anon.get(p); strings.Contains(strings.ToLower(body), "flagged") || strings.Contains(body, "reported=1") {
+			t.Errorf("%s hints at flags", p)
+		}
+	}
+	if _, body := anon.get("/games/1-portal-2/reports/1?reported=1"); !strings.Contains(body, "Thanks. The maintainers will take a look.") {
+		t.Error("thank-you missing after reporting")
+	}
+	// Deleting the comment deletes its flag; the report's stays.
+	if resp, _ := bob.postForm("/comments/1/delete", url.Values{"confirm": {"1"}}, false); resp.StatusCode != 303 {
+		t.Fatal("delete comment")
+	}
+	if count() != 1 {
+		t.Fatalf("flags after comment deletion = %d; want 1", count())
+	}
+	// Ignoring deletes the flag and lets the reporter flag again.
+	if n, err := e.st.IgnoreFlags(context.Background(), "report", 1); err != nil || n != 1 {
+		t.Fatalf("ignore: %d %v", n, err)
+	}
+	if resp, _ := bob.postForm("/reports/1/flag", nil, false); resp.StatusCode != 303 || count() != 1 {
+		t.Fatalf("re-flag after ignore: %d, flags %d", resp.StatusCode, count())
+	}
+	// Content of a deleted account can still be reported (a comment from
+	// someone else keeps the report when its author leaves); removing the
+	// report by moderation deletes its flags.
+	carol := e.newClient()
+	carol.login("carol@example.com")
+	if resp, _ := carol.postForm("/reports/1/comments", url.Values{"body": {"Works on my Mac too."}}, false); resp.StatusCode != 303 {
+		t.Fatal("carol comment")
+	}
+	if resp, _ := alice.postForm("/account/delete", url.Values{"confirm": {"1"}}, false); resp.StatusCode != 200 {
+		t.Fatal("delete account")
+	}
+	if resp, _ := carol.postForm("/reports/1/flag", nil, false); resp.StatusCode != 303 || count() != 2 {
+		t.Fatalf("flag anonymized report: %d, flags %d", resp.StatusCode, count())
+	}
+	if err := e.st.SetReportVisibility(context.Background(), 1, "removed"); err != nil {
+		t.Fatal(err)
+	}
+	if count() != 0 {
+		t.Fatalf("flags after removal = %d; want 0", count())
+	}
+}

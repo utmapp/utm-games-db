@@ -38,10 +38,12 @@
     document.querySelectorAll('article.report[data-author]').forEach(function (a) {
       var mine = !!(me && me.user && Number(a.getAttribute('data-author')) === me.user.id);
       a.querySelectorAll('[data-edit-link]').forEach(function (l) { l.hidden = !mine; });
+      a.querySelectorAll(':scope > .report-foot [data-flag]').forEach(function (f) { f.hidden = mine; });
     });
     document.querySelectorAll('.comment[data-author]').forEach(function (c) {
       var mine = !!(me && me.user && Number(c.getAttribute('data-author')) === me.user.id);
       c.querySelectorAll('[data-delete-comment]').forEach(function (l) { l.hidden = !mine; });
+      c.querySelectorAll('[data-flag]').forEach(function (f) { f.hidden = mine; });
     });
     document.querySelectorAll('[data-plusone-report]').forEach(function (b) {
       var id = Number(b.getAttribute('data-plusone-report'));

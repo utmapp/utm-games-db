@@ -132,3 +132,40 @@ func TestModerationPurgesAndRemovesFiles(t *testing.T) {
 		t.Fatalf("attachment file should be removed when the deletion request is done (stat err=%v)", err)
 	}
 }
+
+// Flags are listed with context and can be ignored.
+func TestFlagsListAndIgnore(t *testing.T) {
+	dir := t.TempDir()
+	d, err := db.Open(filepath.Join(dir, "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	ctx := context.Background()
+	d.Writer.ExecContext(ctx, `INSERT INTO igdb_games (id, name, slug, raw_json, synced_at) VALUES (1, 'Portal 2', 'portal-2', '{}', 0)`)
+	st := store.New(d)
+	v, _ := st.CreateVersion(ctx, "5.0.7", false, nil)
+	author, _ := st.GetOrCreateUser(ctx, "author")
+	reporter, _ := st.GetOrCreateUser(ctx, "reporter")
+	rid, err := st.CreateReport(ctx, store.ReportInput{GameID: 1, UserID: author.ID, Rating: status.Playable, Description: "Spam spam spam", Config: store.ConfigInput{VersionID: v.ID, GuestOS: "windows", GraphicsBackend: "unknown"}}, nil, store.Quotas{DailyBytes: 1, DailyFiles: 1, TotalBytes: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Flag(ctx, store.FlagReport, rid, reporter.ID); err != nil {
+		t.Fatal(err)
+	}
+	h := (&Server{Store: st, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}).Handler()
+	resp := do(h, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/internal/flags", nil))
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 || !strings.Contains(string(body), `"flags": 1`) || !strings.Contains(string(body), "Spam spam spam") || !strings.Contains(string(body), "/games/1-portal-2/reports/1") {
+		t.Fatalf("list flags: %d %s", resp.StatusCode, body)
+	}
+	if resp := post(h, "/internal/flags/report/1/ignore", ""); resp.StatusCode != 200 {
+		t.Fatalf("ignore = %d", resp.StatusCode)
+	}
+	resp = do(h, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081/internal/flags", nil))
+	body, _ = io.ReadAll(resp.Body)
+	if strings.Contains(string(body), "Spam spam spam") {
+		t.Fatalf("flag still listed after ignore: %s", body)
+	}
+}

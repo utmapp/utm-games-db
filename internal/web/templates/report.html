@@ -10,6 +10,7 @@
     {{range .Report.Comments}}
     <div class="comment" id="comment-{{.ID}}" data-author="{{.UserID}}">
       <div class="report-head"><span class="who"><strong>{{.Author}}</strong>{{if eq .AuthorKind "bot"}}<span class="bot"><i class="fas fa-robot"></i> Auto-Triage</span>{{end}}</span><time datetime="{{isodate .CreatedAt}}">{{date .CreatedAt}}</time>
+        <details class="flag" data-flag><summary title="Report this to the maintainers"><i class="fas fa-flag"></i> Report</summary><form method="post" action="/comments/{{.ID}}/flag"><span>Report this to the maintainers?</span> <button class="btn btn-white btn-sm" type="submit">Report</button></form></details>
         <details class="comment-delete" data-delete-comment hidden><summary>Delete</summary><form method="post" action="/comments/{{.ID}}/delete"><input type="hidden" name="confirm" value="1"><span>Delete this comment?</span> <button class="btn btn-danger btn-sm" type="submit">Delete</button></form></details></div>
       {{if .Config}}{{template "config_line" .Config}}{{end}}
       <div class="md">{{if eq .AuthorKind "bot"}}{{mdBot .Body}}{{else}}{{md .Body}}{{end}}</div>

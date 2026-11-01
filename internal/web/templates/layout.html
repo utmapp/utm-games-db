@@ -108,6 +108,7 @@
     <a href="{{.Path}}#comments"><i class="fas fa-comment"></i> {{.CommentCount}} {{plural .CommentCount "comment" "comments"}}</a>
     <span class="spacer"></span>
     <a href="/reports/{{.ID}}/edit" data-edit-link hidden><i class="fas fa-pen"></i> Edit</a>
+    <details class="flag" data-flag><summary title="Report this to the maintainers"><i class="fas fa-flag"></i> Report</summary><form method="post" action="/reports/{{.ID}}/flag"><span>Report this to the maintainers?</span> <button class="btn btn-white btn-sm" type="submit">Report</button></form></details>
     <a href="{{.Path}}">Permalink</a>
   </div>
 </article>{{end}}

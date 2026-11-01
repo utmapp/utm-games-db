@@ -269,6 +269,7 @@ func (s *Store) DeleteUser(ctx context.Context, userID int64) (paths []string, p
 			args []any
 		}{
 			{`DELETE FROM attachments WHERE user_id = ? OR report_id IN (SELECT id FROM reports WHERE user_id = ?)`, []any{userID, userID}},
+			{`DELETE FROM content_flags WHERE user_id = ? OR (kind = 'comment' AND target_id IN (SELECT id FROM comments WHERE user_id = ?))`, []any{userID, userID}},
 			{`DELETE FROM comments WHERE user_id = ?`, []any{userID}},
 			{`DELETE FROM plus_ones WHERE user_id = ?`, []any{userID}},
 		}
@@ -276,7 +277,11 @@ func (s *Store) DeleteUser(ctx context.Context, userID int64) (paths []string, p
 			stmts = append(stmts, struct {
 				q    string
 				args []any
-			}{`DELETE FROM reports WHERE id = ?`, []any{id}}) // comments, +1s, requests cascade
+			}{`DELETE FROM content_flags WHERE (kind = 'report' AND target_id = ?) OR (kind = 'comment' AND target_id IN (SELECT id FROM comments WHERE report_id = ?))`, []any{id, id}},
+				struct {
+					q    string
+					args []any
+				}{`DELETE FROM reports WHERE id = ?`, []any{id}}) // comments, +1s, requests cascade
 		}
 		stmts = append(stmts, []struct {
 			q    string

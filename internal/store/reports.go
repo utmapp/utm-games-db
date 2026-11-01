@@ -661,6 +661,9 @@ func (s *Store) DeleteOwnReport(ctx context.Context, reportID, userID int64) (pa
 		if _, err := tx.ExecContext(ctx, `UPDATE reports SET visibility = 'removed', updated_at = ? WHERE id = ?`, now, reportID); err != nil {
 			return err
 		}
+		if err := deleteReportFlags(ctx, tx, reportID); err != nil {
+			return err
+		}
 		removed, err := deleteAttachments(ctx, tx, now, `report_id = ?`, reportID)
 		if err != nil {
 			return err
@@ -795,6 +798,9 @@ func (s *Store) ResolveDeletionRequest(ctx context.Context, id int64, st string)
 		if _, err := tx.ExecContext(ctx, `UPDATE reports SET visibility = 'removed', updated_at = ? WHERE id = ?`, now, reportID); err != nil {
 			return err
 		}
+		if err := deleteReportFlags(ctx, tx, reportID); err != nil {
+			return err
+		}
 		removed, err := deleteAttachments(ctx, tx, now, `report_id = ?`, reportID)
 		if err != nil {
 			return err
@@ -820,6 +826,9 @@ func (s *Store) DeleteOwnComment(ctx context.Context, commentID, userID int64) (
 			return ErrNotFound
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE comments SET visibility = 'removed' WHERE id = ?`, commentID); err != nil {
+			return err
+		}
+		if err := deleteCommentFlags(ctx, tx, commentID); err != nil {
 			return err
 		}
 		return recountComments(ctx, tx, reportID, now)
@@ -849,6 +858,11 @@ func (s *Store) SetReportVisibility(ctx context.Context, reportID int64, vis str
 		if _, err := tx.ExecContext(ctx, `UPDATE reports SET visibility = ?, updated_at = ? WHERE id = ?`, vis, now, reportID); err != nil {
 			return err
 		}
+		if vis == "removed" {
+			if err := deleteReportFlags(ctx, tx, reportID); err != nil {
+				return err
+			}
+		}
 		return recomputeGame(ctx, tx, gameID, now)
 	})
 }
@@ -869,6 +883,11 @@ func (s *Store) SetCommentVisibility(ctx context.Context, commentID int64, vis s
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE comments SET visibility = ? WHERE id = ?`, vis, commentID); err != nil {
 			return err
+		}
+		if vis == "removed" {
+			if err := deleteCommentFlags(ctx, tx, commentID); err != nil {
+				return err
+			}
 		}
 		return recountComments(ctx, tx, reportID, now)
 	})

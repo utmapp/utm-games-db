@@ -182,6 +182,11 @@ func (s *Server) handleReport(w http.ResponseWriter, r *http.Request) {
 		Values:   map[string]string{},
 		Errors:   map[string]string{},
 	}
+	if r.URL.Query().Get("reported") == "1" {
+		// Shown to whoever lands on this variant of the URL; it says nothing
+		// about the content, so the page stays cacheable.
+		data.Flash = "Thanks. The maintainers will take a look."
+	}
 	// Hidden/removed reports are only visible to their author; for anyone
 	// else they do not exist, not even as a redirect to their game.
 	if rep.Visibility != "visible" && (user == nil || user.ID != rep.UserID) {
