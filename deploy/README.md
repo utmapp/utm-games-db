@@ -22,9 +22,9 @@ Data (SQLite file, uploads, covers) lives in the `gamesdb-data` volume. Back it 
 The production setup for db.getutm.app: one static binary on a Mac, serving HTTPS on 443 with a Cloudflare Origin CA certificate, with pf admitting only Cloudflare's edge. The machine auto-logs in to a standard user account without sudo rights; the service runs as that user from a LaunchAgent, and everything it owns lives under `~/gamesdb`. Two scripts in `deploy/macos/` split the work by privilege:
 
 - `install-system.sh`, run once by an administrator with sudo: the pf allowlist, the daemons that enable pf at boot and refresh the allowlist monthly, and log rotation. Nothing else needs root.
-- `install.sh`, run by the standard user without sudo: binary, `.env`, data, certificate and log directories, and the LaunchAgent. This is the one you re-run for upgrades.
+- `install.sh`, run by the standard user without sudo: builds the binary, installs it with `.env`, data, certificate and log directories and the LaunchAgent, and starts or restarts the service. Re-run it after any change.
 
-1. **Build.** `make build-mac` on any machine produces `gamesdb-darwin-arm64`; copy it and the repository (or at least `deploy/macos/` and `.env.example`) to the Mac.
+1. **Check out the repository on the Mac** and make sure Go is installed (`brew install go`); the user script builds from the checkout.
 
 2. **Machine-wide, as an administrator**, naming the standard account. The script uses only the files beside it, so any checkout works, including one in the administrator's own home:
 
@@ -40,11 +40,13 @@ The production setup for db.getutm.app: one static binary on a Mac, serving HTTP
    ./deploy/macos/install.sh
    ```
 
-   The first run creates `~/gamesdb/{data,tls,log}`, installs the binary, writes `~/gamesdb/.env` from `.env.example` with the macOS values filled in (port 443, TLS paths, data directory, a fresh `SECRET_KEY`, Cloudflare's current ranges as `TRUSTED_PROXY_CIDRS`), and then stops because the certificate is not there yet. `PREFIX` and `BINARY` override `~/gamesdb` and the binary in the current directory.
+   It builds the binary (`make build-mac`, which does nothing when no source changed), creates `~/gamesdb/{data,tls,log}`, writes `~/gamesdb/.env` from `.env.example` with the macOS values filled in (port 443, TLS paths, data directory, a fresh `SECRET_KEY`, Cloudflare's current ranges as `TRUSTED_PROXY_CIDRS`), and then stops because the certificate is not there yet. `PREFIX` overrides `~/gamesdb`; `BINARY` skips the build and installs a given file.
 
 4. **Certificate and settings.** In the Cloudflare dashboard, SSL/TLS → Origin Server → Create Certificate for `db.getutm.app` (15 years). Save the certificate as `~/gamesdb/tls/origin.pem` and the key as `~/gamesdb/tls/origin.key`. Edit `~/gamesdb/.env`: the `SMTP_*` settings of the transactional mail provider, `IGDB_CLIENT_ID`/`IGDB_CLIENT_SECRET`, `AKISMET_KEY`. Back up `SECRET_KEY` off the machine.
 
-5. **Run `install.sh` again.** It loads the LaunchAgent and waits for `https://127.0.0.1:443/healthz`. Later runs (new binary, changed `.env`, new Cloudflare ranges) do the same and restart the service.
+5. **Run `install.sh` again.** It starts the LaunchAgent and waits for `https://127.0.0.1:443/healthz`.
+
+   From then on, every change is the same step: pull or edit, then `./deploy/macos/install.sh`. It rebuilds only if a source changed, installs the binary, refreshes `TRUSTED_PROXY_CIDRS`, and restarts the running service (or reloads it when the agent definition itself changed).
 
 6. **Cloudflare.** Proxy the `db` DNS record (orange cloud) and set the SSL mode to **Full (strict)**. The origin listens on 443, which Cloudflare caches; macOS lets a normal user bind it. Then the cache rule and optional purge hook from the Cloudflare zone section below.
 
@@ -59,7 +61,7 @@ What ends up where:
 | `/usr/local/sbin/cloudflare-ips.sh`, `/Library/LaunchDaemons/app.getutm.cloudflare-ips.plist` | root | refreshes the Cloudflare table on the first of each month (root-owned so the service user cannot widen it) |
 | `/etc/newsyslog.d/gamesdb.conf` | root | weekly log rotation; it restarts the service (via `~/gamesdb/data/gamesdb.pid`) so the new file is picked up |
 
-Day to day: `launchctl kickstart -k gui/$(id -u)/app.getutm.db` restarts the service, `tail -f ~/gamesdb/log/gamesdb.log` follows it, and `sudo pfctl -a gamesdb -s rules` shows the firewall rules (loopback stays open, so `curl -k https://127.0.0.1/healthz` works on the box). The internal API stays on loopback: `ssh -L 8081:127.0.0.1:8081 user@mac` and then `curl localhost:8081/internal/healthz`. Back up `~/gamesdb/data` (SQLite via `sqlite3 gamesdb.sqlite ".backup out.sqlite"`, plus `uploads/` and `covers/`) together with `SECRET_KEY`. Because the agent lives in the login session, the site is down while nobody is logged in; the auto-login makes that only the seconds after a reboot. Nothing here lives in files macOS updates replace, so an update needs no re-setup. If the hosting provider offers its own firewall, add the same Cloudflare allowlist there too.
+Day to day: `./deploy/macos/install.sh` applies any change and restarts the service, `tail -f ~/gamesdb/log/gamesdb.log` follows it, and `sudo pfctl -a gamesdb -s rules` shows the firewall rules (loopback stays open, so `curl -k https://127.0.0.1/healthz` works on the box). The internal API stays on loopback: `ssh -L 8081:127.0.0.1:8081 user@mac` and then `curl localhost:8081/internal/healthz`. Back up `~/gamesdb/data` (SQLite via `sqlite3 gamesdb.sqlite ".backup out.sqlite"`, plus `uploads/` and `covers/`) together with `SECRET_KEY`. Because the agent lives in the login session, the site is down while nobody is logged in; the auto-login makes that only the seconds after a reboot. Nothing here lives in files macOS updates replace, so an update needs no re-setup. If the hosting provider offers its own firewall, add the same Cloudflare allowlist there too.
 
 ## Sending mail directly
 

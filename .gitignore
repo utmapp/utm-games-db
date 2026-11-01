@@ -8,6 +8,7 @@
 
 # build output
 /gamesdb
+/gamesdb-darwin-arm64
 /bin/
 /dist/
 

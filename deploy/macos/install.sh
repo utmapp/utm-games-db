@@ -3,26 +3,33 @@
 #
 #   ./deploy/macos/install.sh            # from the repository root
 #
-# Installs the binary, .env, data, certificate and log directories under
-# $PREFIX (default ~/gamesdb) and a LaunchAgent that runs the server in this
-# user's login session. The machine-wide part (firewall, log rotation) is
+# Builds the binary (make build-mac, a no-op when nothing changed), installs
+# it with .env, data, certificate and log directories under $PREFIX
+# (default ~/gamesdb) and a LaunchAgent that runs the server in this user's
+# login session, then starts the service or restarts it if it is already
+# running. The machine-wide part (firewall, log rotation) is
 # install-system.sh, run once by an administrator.
 #
-# Re-running is safe: it upgrades the binary, refreshes TRUSTED_PROXY_CIDRS
-# and restarts the service. .env and the data directory are never overwritten.
+# After any change (new commit, edited .env, new certificate) re-run this
+# script; .env and the data directory are never overwritten.
 #
-# Environment overrides: PREFIX, BINARY (default ./gamesdb-darwin-arm64 or ./gamesdb).
+# Environment overrides: PREFIX, BINARY (skip the build and install this file).
 set -euo pipefail
 
 [ "$(id -u)" -ne 0 ] || { echo "run as the service user, not root" >&2; exit 1; }
 HERE=$(cd "$(dirname "$0")" && pwd)
 PREFIX=${PREFIX:-$HOME/gamesdb}
+REPO=$(cd "$HERE/../.." && pwd)
+say() { printf '\n==> %s\n' "$*"; }
+
 BINARY=${BINARY:-}
 if [ -z "$BINARY" ]; then
-  for b in gamesdb-darwin-arm64 gamesdb; do [ -x "$b" ] && BINARY=$b && break; done
+  say "Building"
+  command -v go >/dev/null || { echo "Go is not installed (brew install go), or set BINARY to a built binary" >&2; exit 1; }
+  make -C "$REPO" --no-print-directory build-mac
+  BINARY=$REPO/gamesdb-darwin-arm64
 fi
-[ -n "$BINARY" ] && [ -x "$BINARY" ] || { echo "no built binary found; run: make build-mac" >&2; exit 1; }
-say() { printf '\n==> %s\n' "$*"; }
+[ -x "$BINARY" ] || { echo "no binary at $BINARY" >&2; exit 1; }
 
 say "Installing to $PREFIX"
 mkdir -p "$PREFIX/data" "$PREFIX/tls" "$PREFIX/log"
@@ -46,8 +53,7 @@ set_env() { # set_env KEY VALUE: replace (or add) the KEY= line, uncommenting it
 }
 if [ ! -f "$ENV_FILE" ]; then
   say "Creating $ENV_FILE from .env.example"
-  [ -f "$HERE/../../.env.example" ] || { echo ".env.example not found; run from the repository root" >&2; exit 1; }
-  cp "$HERE/../../.env.example" "$ENV_FILE"
+  cp "$REPO/.env.example" "$ENV_FILE"
   set_env BASE_URL https://db.getutm.app
   set_env LISTEN_ADDR :443
   set_env TLS_CERT "$PREFIX/tls/origin.pem"
@@ -80,26 +86,42 @@ MSG
 fi
 chmod 600 "$PREFIX"/tls/*
 DOMAIN="gui/$(id -u)"
-# Reload so plist changes take effect. launchd can refuse a bootstrap for a
-# few seconds after a bootout while the old job is torn down, so retry.
-launchctl bootout "$DOMAIN/app.getutm.db" 2>/dev/null || true
-loaded=0
-for _ in $(seq 1 15); do
-  if err=$(launchctl bootstrap "$DOMAIN" "$AGENTS/app.getutm.db.plist" 2>&1); then loaded=1; break; fi
-  sleep 1
-done
-if [ "$loaded" != 1 ]; then
-  echo "could not load the agent: $err" >&2
-  echo "if you are not in a login session, it starts at the next login; otherwise run: launchctl bootstrap $DOMAIN $AGENTS/app.getutm.db.plist" >&2
-  exit 1
+# Start the agent the first time; afterwards restart it so the new binary
+# and .env are picked up. launchd keeps the old plist until a reload, so a
+# changed plist is reloaded (launchd can refuse a bootstrap for a few
+# seconds after a bootout while the old job is torn down, hence the retry).
+if ! launchctl print "$DOMAIN/app.getutm.db" >/dev/null 2>&1; then
+  action="Starting"
+elif [ -f "$AGENTS/app.getutm.db.plist.installed" ] && cmp -s "$AGENTS/app.getutm.db.plist" "$AGENTS/app.getutm.db.plist.installed"; then
+  action="Restarting"
+else
+  action="Reloading"
 fi
+say "$action app.getutm.db"
+case $action in
+Restarting)
+  launchctl kickstart -k "$DOMAIN/app.getutm.db" ;;
+*)
+  launchctl bootout "$DOMAIN/app.getutm.db" 2>/dev/null || true
+  loaded=0
+  for _ in $(seq 1 15); do
+    if err=$(launchctl bootstrap "$DOMAIN" "$AGENTS/app.getutm.db.plist" 2>&1); then loaded=1; break; fi
+    sleep 1
+  done
+  if [ "$loaded" != 1 ]; then
+    echo "could not load the agent: $err" >&2
+    echo "if you are not in a login session, it starts at the next login; otherwise run: launchctl bootstrap $DOMAIN $AGENTS/app.getutm.db.plist" >&2
+    exit 1
+  fi ;;
+esac
+cp "$AGENTS/app.getutm.db.plist" "$AGENTS/app.getutm.db.plist.installed"
 
 say "Checking"
 # -q (first argument) makes curl ignore ~/.curlrc.
 for _ in $(seq 1 20); do
   if curl -q -sk --max-time 3 -o /dev/null -w '%{http_code}' "https://127.0.0.1:$PORT/healthz" 2>/dev/null | grep -q '^200$'; then
     echo "service answers on https://127.0.0.1:$PORT (TLS)"
-    [ "$NEW_ENV" = 1 ] && echo "Now fill in $ENV_FILE (SMTP_*, IGDB_*, AKISMET_KEY) and run: launchctl kickstart -k $DOMAIN/app.getutm.db"
+    [ "$NEW_ENV" = 1 ] && echo "Now fill in $ENV_FILE (SMTP_*, IGDB_*, AKISMET_KEY) and run this script again"
     exit 0
   fi
   sleep 1
