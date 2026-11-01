@@ -27,7 +27,7 @@
         {{template "mdedit" (dict "ID" "body" "Name" "body" "Value" .Values.body "Placeholder" "Share what you found, a workaround, or a question…" "Max" 10000 "Required" true)}}
         {{with index .Errors "body"}}<span class="error">{{.}}</span>{{end}}
       </div>
-      <label class="choice"><input type="checkbox" name="include_config" value="1"{{if .Values.include_config}} checked{{end}}> <span>Include my configuration <small>UTM version, guest OS and hardware.</small></span></label>
+      <label class="choice"><input type="checkbox" name="include_config" value="1"{{if .Values.include_config}} checked{{end}}> <span>Include my configuration</span></label>
       <div data-when="config" style="margin-top:16px">{{template "config_fields" (dict "Prefix" "c_" "Versions" .Versions "Values" .Values "Errors" .Errors "Locked" false "VersionLabel" "")}}</div>
       <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
       <div class="form-actions"><button class="btn btn-primary" type="submit">Post comment</button> <span class="small faint">You'll be asked to sign in if you haven't.</span></div>

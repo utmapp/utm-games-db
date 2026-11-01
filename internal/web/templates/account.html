@@ -22,9 +22,8 @@
           <div class="field"><label for="chip">Chip</label><input class="input" id="chip" name="chip" value="{{.User.Host.Chip}}" placeholder="e.g. M3 Pro" maxlength="40"></div>
           <div class="field"><label for="ram_gb">Memory (GB)</label><input class="input" id="ram_gb" name="ram_gb" value="{{if .User.Host.RAMGB}}{{.User.Host.RAMGB}}{{end}}" inputmode="numeric" placeholder="e.g. 32" maxlength="5"></div>
         </div>
-        <div class="form-actions"><button class="btn btn-primary btn-sm" type="submit">Save</button></div>
+        <div class="form-actions" style="margin-top:4px;justify-content:flex-end"><button class="btn btn-primary btn-sm" type="submit">Save</button></div>
       </form>
-      <p class="small faint" style="margin:10px 0 0">Filled in for you on report and comment forms. Shown with the configuration of the reports you choose to include it in.</p>
     </div>
     <div class="card">
       <h2>Starred games <span class="count">{{len .Stars}}</span></h2>

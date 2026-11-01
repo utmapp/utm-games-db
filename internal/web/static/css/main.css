@@ -348,7 +348,9 @@ select.input, .select {
 .file-list .too-big { color: var(--danger); }
 
 /* Account */
-.account-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.account-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.account-grid .card { display: flex; flex-direction: column; }
+.account-grid .card > .inline-form, .account-grid .card > form { flex: 0 0 auto; }
 .account-grid h2 .count, .settings h2 .count { font-weight: 500; font-size: 15px; color: var(--faint); margin-left: 4px; }
 .inline-form { display: flex; gap: 10px; align-items: center; }
 .inline-form .input { flex: 1; min-width: 0; }
@@ -366,7 +368,8 @@ select.input, .select {
 .confirm[open] > summary { display: none; }
 .confirm form { display: flex; gap: 10px; align-items: center; }
 .mini-list { display: grid; gap: 8px; }
-.mini-list a { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 10px; background: var(--bg); color: var(--ink); font-size: 14px; }
+.mini-list a { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 10px; background: var(--bg); color: var(--ink); font-size: 14px; }
+.mini-list .status { flex: 0 0 auto; white-space: nowrap; }
 
 /* Footer */
 .site-footer {
@@ -409,6 +412,7 @@ select.input, .select {
   .site-nav .nav-download { padding: 9px 14px; margin-left: 4px; }
   .page { padding: 24px var(--gutter) 64px; }
   .card { padding: 20px; }
+  .account-grid { grid-template-columns: 1fr; }
   .game-head { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .game-head .cover { width: 140px; }
   .report { padding: 18px 18px; }
