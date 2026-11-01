@@ -55,6 +55,7 @@
 html { -webkit-text-size-adjust: 100%; overflow-x: hidden; }
 body {
   margin: 0;
+  overflow-x: hidden; /* iOS Safari ignores it on html alone */
   background: var(--bg);
   color: var(--ink);
   font-family: var(--body);
@@ -426,6 +427,15 @@ select.input, .select {
   .prose { padding: 24px var(--gutter) 64px; font-size: 16px; }
   .prose h1 { font-size: 36px; }
   .prose h2 { font-size: 24px; }
+}
+
+/* Phones: the brand and the links do not fit on one row, so the links
+   take a second row, right-aligned; the sub-brand and the display name
+   are kept short. */
+@media (max-width: 600px) {
+  .site-header { flex-wrap: wrap; height: auto; padding-top: 12px; padding-bottom: 10px; row-gap: 6px; }
+  .site-nav { width: 100%; justify-content: flex-end; }
+  .site-nav .nav-user a { max-width: 110px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
