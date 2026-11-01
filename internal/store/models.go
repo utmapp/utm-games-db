@@ -310,7 +310,7 @@ func IssueLabel(t string) string {
 	case "other":
 		return "Other"
 	case "unknown":
-		return "Unknown"
+		return "Unknown / None"
 	}
 	return ""
 }
