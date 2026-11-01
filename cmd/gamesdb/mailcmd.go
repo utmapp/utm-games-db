@@ -197,7 +197,7 @@ func mailTest(cfg *config.Config, log *slog.Logger, args []string) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	if err := m.Send(ctx, to, "Your UTM Database sign-in code", auth.CodeBody("123456", cfg.BaseURL.Hostname(), cfg.LoginCodeTTL)); err != nil {
+	if err := m.Send(ctx, to, "Your UTM Database sign-in code", auth.CodeBody("123456", cfg.LoginCodeTTL)); err != nil {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "sent")

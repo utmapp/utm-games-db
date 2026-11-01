@@ -35,12 +35,12 @@ type capturingMailer struct {
 	lastTo string
 }
 
-var codeRe = regexp.MustCompile(`(?m)^@[^ ]+ #(\d{6})$`)
+var codeRe = regexp.MustCompile(`sign-in code is (\d{6})`)
 
 func (m *capturingMailer) Send(_ context.Context, to, subject, body string) error {
 	mt := codeRe.FindStringSubmatch(body)
 	if mt == nil {
-		panic("sign-in mail without a domain-bound code line: " + body)
+		panic("sign-in mail without a code: " + body)
 	}
 	m.codes = append(m.codes, mt[1])
 	m.lastTo = "[withheld]" // the real log mailer never prints the recipient

@@ -298,17 +298,10 @@ func UserFrom(ctx context.Context) *store.User {
 	return u
 }
 
-// CodeBody renders the sign-in email. The last line carries the code in the
-// domain-bound form ("@host #code") that Apple's Security Code AutoFill and
-// the origin-bound one-time code draft recognise, so Safari can offer the
-// code only on this site.
-func CodeBody(code, host string, ttl time.Duration) string {
+// CodeBody renders the sign-in email.
+func CodeBody(code string, ttl time.Duration) string {
 	return fmt.Sprintf(`Your UTM Database sign-in code is %s
 
 Enter it on the sign-in page you requested it from. The code expires in %d minutes and works once. If you did not request it, you can ignore this email.
-
-— UTM
-
-@%s #%s
-`, code, int(ttl.Minutes()), host, code)
+`, code, int(ttl.Minutes()))
 }

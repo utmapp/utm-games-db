@@ -146,7 +146,7 @@ func newMailer(t *testing.T, mx *fakeMX) (*DirectMailer, string) {
 func TestDirectDeliveryIsSignedAndVerifiable(t *testing.T) {
 	mx := newFakeMX(t, 0)
 	m, record := newMailer(t, mx)
-	body := "Your code is 123456\n\n\u2014 UTM\n\n@db.example #123456\n"
+	body := "Your code is 123456 \u2014 enjoy\n"
 	if err := m.Send(context.Background(), "alice@example.com", "Your code", body); err != nil {
 		t.Fatal(err)
 	}
@@ -161,9 +161,6 @@ func TestDirectDeliveryIsSignedAndVerifiable(t *testing.T) {
 		if !bytes.Contains(raw, []byte(h)) {
 			t.Errorf("message lacks %q:\n%s", h, raw)
 		}
-	}
-	if !bytes.Contains(raw, []byte("@db.example #123456")) {
-		t.Errorf("code line not in body:\n%s", raw)
 	}
 	// The body carries UTF-8 (the em dash in the sign-off), so it must be
 	// transfer-encoded: a server without 8BITMIME must receive pure ASCII.

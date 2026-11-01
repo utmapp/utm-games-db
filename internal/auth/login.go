@@ -28,7 +28,6 @@ type LoginQueue struct {
 	Service     *Service
 	Mailer      mail.Mailer
 	Log         *slog.Logger
-	SiteHost    string // host named in the email's domain-bound code line
 	CodeTTL     time.Duration
 	MXCheck     bool
 	LookupMX    func(ctx context.Context, domain string) (bool, error) // nil = net resolver
@@ -145,7 +144,7 @@ func (q *LoginQueue) process(req LoginRequest) {
 		q.Log.Error("create sign-in code", "id", HashPrefix(emailHash), "err", err)
 		return
 	}
-	if err := q.Mailer.Send(ctx, req.Email, "Your UTM Database sign-in code", CodeBody(code, q.SiteHost, q.CodeTTL)); err != nil {
+	if err := q.Mailer.Send(ctx, req.Email, "Your UTM Database sign-in code", CodeBody(code, q.CodeTTL)); err != nil {
 		q.Log.Error("send sign-in code", "id", HashPrefix(emailHash), "err", mail.RedactAddress(err, req.Email))
 		return
 	}

@@ -114,7 +114,6 @@ func New(cfg *config.Config, st *store.Store, au *auth.Service, mailer mail.Mail
 	s.Login.Service = au
 	s.Login.Mailer = mailer
 	s.Login.Log = log
-	s.Login.SiteHost = cfg.BaseURL.Hostname()
 	s.Login.CodeTTL = cfg.LoginCodeTTL
 	s.Login.MXCheck = cfg.LoginMXCheck
 	s.Login.Start()
