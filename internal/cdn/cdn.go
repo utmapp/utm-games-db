@@ -40,12 +40,15 @@ func Immutable(w http.ResponseWriter) {
 // If-None-Match with 304 when it matches.
 func WriteHTML(w http.ResponseWriter, r *http.Request, status int, body *bytes.Buffer) {
 	sum := sha256.Sum256(body.Bytes())
-	etag := `"` + hex.EncodeToString(sum[:16]) + `"`
-	w.Header().Set("ETag", etag)
+	// A weak ETag: the CDN recompresses responses and drops strong ETags
+	// (which promise byte identity) but forwards weak ones, so browsers can
+	// revalidate against the edge cache and get a 304.
+	tag := `"` + hex.EncodeToString(sum[:16]) + `"`
+	w.Header().Set("ETag", "W/"+tag)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if status == http.StatusOK && r.Method == http.MethodGet {
 		for _, v := range strings.Split(r.Header.Get("If-None-Match"), ",") {
-			if strings.TrimSpace(v) == etag {
+			if strings.TrimPrefix(strings.TrimSpace(v), "W/") == tag {
 				w.WriteHeader(http.StatusNotModified)
 				return
 			}
