@@ -314,7 +314,7 @@ func recomputeGame(ctx context.Context, tx *sql.Tx, gameID int64, now int64) err
 	return err
 }
 
-// RecomputeGame is the exported form used by moderation endpoints.
+// RecomputeGame recomputes one game's counters and status (used by seed).
 func (s *Store) RecomputeGame(ctx context.Context, gameID int64) error {
 	return s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
 		return recomputeGame(ctx, tx, gameID, time.Now().Unix())

@@ -177,8 +177,8 @@ func get(h http.Handler, path string) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
-// Owned entries can be added and removed one at a time without replacing
-// what other triage machines reported, and availability follows.
+// Owned entries are added and removed one machine at a time without
+// touching what other triage machines reported, and availability follows.
 func TestOwnedUpsertAndDelete(t *testing.T) {
 	dir := t.TempDir()
 	d, err := db.Open(filepath.Join(dir, "t.sqlite"))
@@ -206,9 +206,8 @@ func TestOwnedUpsertAndDelete(t *testing.T) {
 		return on
 	}
 
-	req := httptest.NewRequest(http.MethodPut, "http://127.0.0.1:8081/internal/triage/owned", strings.NewReader(`[{"storefront":"gog","storefront_id":"other-machine"}]`))
-	if resp := do(h, req); resp.StatusCode != 200 {
-		t.Fatalf("put = %d", resp.StatusCode)
+	if resp := post(h, "/internal/triage/owned", `[{"storefront":"gog","storefront_id":"other-machine"}]`); resp.StatusCode != 200 {
+		t.Fatalf("first machine's add = %d", resp.StatusCode)
 	}
 	if resp := post(h, "/internal/triage/owned", `[{"storefront":"Steam","storefront_id":"620"}]`); resp.StatusCode != 200 {
 		t.Fatalf("upsert = %d", resp.StatusCode)

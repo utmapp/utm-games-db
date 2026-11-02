@@ -347,7 +347,7 @@ func seed(cfg *config.Config, log *slog.Logger, args []string) error {
 	}
 	rows.Close()
 	owned = append(owned, store.OwnedEntry{Storefront: "steam", StorefrontID: "999999999"}) // unmatched entry
-	matched, err := st.ReplaceOwned(ctx, owned)
+	matched, err := st.UpsertOwned(ctx, owned)
 	if err != nil {
 		return err
 	}

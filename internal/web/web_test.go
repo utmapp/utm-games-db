@@ -624,9 +624,9 @@ func TestEndToEnd(t *testing.T) {
 	}
 
 	// Triage: owned list pushed before activation lights the badge afterwards.
-	matched, err := e.st.ReplaceOwned(context.Background(), []store.OwnedEntry{{Storefront: "steam", StorefrontID: "220"}, {Storefront: "steam", StorefrontID: "999999"}})
+	matched, err := e.st.UpsertOwned(context.Background(), []store.OwnedEntry{{Storefront: "steam", StorefrontID: "220"}, {Storefront: "steam", StorefrontID: "999999"}})
 	if err != nil || matched != 1 {
-		t.Fatalf("ReplaceOwned matched=%d err=%v", matched, err)
+		t.Fatalf("UpsertOwned matched=%d err=%v", matched, err)
 	}
 	g, _ = e.st.GetGame(context.Background(), 2)
 	if !g.Active || !g.TriageAvailable {

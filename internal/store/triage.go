@@ -119,19 +119,6 @@ func putOwned(ctx context.Context, tx *sql.Tx, entries []OwnedEntry, now int64) 
 	return matched, err
 }
 
-// ReplaceOwned replaces the owned-games list and rematches availability.
-func (s *Store) ReplaceOwned(ctx context.Context, entries []OwnedEntry) (matched int, err error) {
-	now := time.Now().Unix()
-	err = s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM triage_owned`); err != nil {
-			return err
-		}
-		matched, err = putOwned(ctx, tx, entries, now)
-		return err
-	})
-	return
-}
-
 // UpsertOwned adds entries to the owned-games list, or updates the free flag
 // of entries already on it, leaving every other entry alone. Several triage
 // machines can each add what they own without replacing each other's.
@@ -165,23 +152,6 @@ func (s *Store) DeleteOwned(ctx context.Context, storefront, storefrontID string
 			return nil
 		}
 		return igdb.RebuildAvailability(ctx, tx, gameID.Int64)
-	})
-}
-
-// SetManualAvailability marks or unmarks a game as triage-available by hand.
-func (s *Store) SetManualAvailability(ctx context.Context, gameID int64, on bool) error {
-	now := time.Now().Unix()
-	return s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
-		if on {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO triage_availability (game_id, source, updated_at) VALUES (?, 'manual', ?) ON CONFLICT(game_id) DO UPDATE SET source = 'manual', storefront = NULL, storefront_id = NULL, updated_at = excluded.updated_at`, gameID, now); err != nil {
-				return err
-			}
-		} else {
-			if _, err := tx.ExecContext(ctx, `DELETE FROM triage_availability WHERE game_id = ? AND source = 'manual'`, gameID); err != nil {
-				return err
-			}
-		}
-		return igdb.RebuildAvailability(ctx, tx, gameID)
 	})
 }
 

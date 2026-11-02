@@ -85,14 +85,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /internal/triage/requests", s.listTriageRequests)
 	mux.HandleFunc("POST /internal/triage/requests/{id}/status", s.triageRequestStatus)
 	mux.HandleFunc("GET /internal/triage/owned", s.listOwned)
-	mux.HandleFunc("PUT /internal/triage/owned", s.replaceOwned)
 	mux.HandleFunc("POST /internal/triage/owned", s.upsertOwned)
 	mux.HandleFunc("DELETE /internal/triage/owned/{storefront}/{storefront_id...}", s.deleteOwned)
-	mux.HandleFunc("PUT /internal/triage/manual/{id}", s.manualAvailability(true))
-	mux.HandleFunc("DELETE /internal/triage/manual/{id}", s.manualAvailability(false))
 
 	// Users / moderation
-	mux.HandleFunc("GET /internal/users", s.listUsers)
 	mux.HandleFunc("GET /internal/users/{id}", s.getUser)
 	mux.HandleFunc("POST /internal/users/{id}/ban", s.ban(true))
 	mux.HandleFunc("POST /internal/users/{id}/unban", s.ban(false))
@@ -105,7 +101,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /internal/sync", s.sync)
 	mux.HandleFunc("GET /internal/sync/status", s.syncStatus)
 	mux.HandleFunc("POST /internal/games/{id}/refresh", s.refreshGame)
-	mux.HandleFunc("POST /internal/games/{id}/recompute", s.recomputeGame)
 	mux.HandleFunc("POST /internal/maintenance/sweep-attachments", s.sweep)
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -528,7 +523,7 @@ func ownedBody(w http.ResponseWriter, r *http.Request) ([]store.OwnedEntry, bool
 	}
 	var entries []store.OwnedEntry
 	if err := json.Unmarshal(body, &entries); err != nil || entries == nil {
-		fail(w, http.StatusBadRequest, errors.New("expected a JSON array of {storefront, storefront_id, free} or {igdb_game_id, free}; send [] to clear the list explicitly"))
+		fail(w, http.StatusBadRequest, errors.New("expected a JSON array of {storefront, storefront_id, free} or {igdb_game_id, free}"))
 		return nil, false
 	}
 	return entries, true
@@ -539,21 +534,6 @@ func (s *Server) purgeOwned() {
 	if s.Purger != nil {
 		s.Purger.Purge("/", store.JSONGamesPath) // game pages pick up badge changes within their TTL
 	}
-}
-
-func (s *Server) replaceOwned(w http.ResponseWriter, r *http.Request) {
-	entries, valid := ownedBody(w, r)
-	if !valid {
-		return
-	}
-	matched, err := s.Store.ReplaceOwned(r.Context(), entries)
-	if err != nil {
-		failFor(w, err)
-		return
-	}
-	s.purgeOwned()
-	s.Log.Info("owned games list replaced", "entries", len(entries), "matched", matched)
-	ok(w, map[string]any{"received": len(entries), "matched": matched})
 }
 
 // upsertOwned adds entries to the owned list (or updates their free flag)
@@ -587,36 +567,7 @@ func (s *Server) deleteOwned(w http.ResponseWriter, r *http.Request) {
 	ok(w, map[string]any{"deleted": map[string]string{"storefront": sf, "storefront_id": id}})
 }
 
-func (s *Server) manualAvailability(on bool) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := pathID(r)
-		if err != nil {
-			fail(w, http.StatusBadRequest, err)
-			return
-		}
-		if err := s.Store.SetManualAvailability(r.Context(), id, on); err != nil {
-			failFor(w, err)
-			return
-		}
-		s.purgeGame(r.Context(), id)
-		ok(w, map[string]any{"game": id, "manual_triage_available": on})
-	}
-}
-
 // --- users / moderation --------------------------------------------------------
-
-func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	users, err := s.Store.ListUsers(r.Context(), limit)
-	if err != nil {
-		failFor(w, err)
-		return
-	}
-	if users == nil {
-		users = []store.User{}
-	}
-	ok(w, map[string]any{"users": users})
-}
 
 // getUser returns one user with counts of their content, flags and spam log
 // entries.
@@ -768,25 +719,6 @@ func (s *Server) refreshGame(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := s.Syncer.ResolveDetails(r.Context(), id); err != nil {
 		fail(w, http.StatusBadGateway, err)
-		return
-	}
-	s.purgeGame(r.Context(), id)
-	g, err := s.Store.GetGame(r.Context(), id)
-	if err != nil {
-		failFor(w, err)
-		return
-	}
-	ok(w, g)
-}
-
-func (s *Server) recomputeGame(w http.ResponseWriter, r *http.Request) {
-	id, err := pathID(r)
-	if err != nil {
-		fail(w, http.StatusBadRequest, err)
-		return
-	}
-	if err := s.Store.RecomputeGame(r.Context(), id); err != nil {
-		failFor(w, err)
 		return
 	}
 	s.purgeGame(r.Context(), id)

@@ -142,29 +142,27 @@ func MatchOwned(ctx context.Context, tx *sql.Tx, gameID int64) error {
 }
 
 // RebuildAvailability recomputes triage_availability (for one game or all)
-// from triage_owned and manual entries, and mirrors the flag onto games.
+// from triage_owned and mirrors the flag onto games.
 func RebuildAvailability(ctx context.Context, tx *sql.Tx, gameID int64) error {
 	now := time.Now().Unix()
 	if gameID != 0 {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM triage_availability WHERE game_id = ? AND source <> 'manual'`, gameID); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM triage_availability WHERE game_id = ?`, gameID); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO triage_availability (game_id, source, storefront, storefront_id, updated_at)
 			SELECT igdb_game_id, CASE WHEN free THEN 'free' ELSE 'owned' END, storefront, storefront_id, ? FROM triage_owned
-			WHERE igdb_game_id = ? ORDER BY free DESC LIMIT 1
-			ON CONFLICT(game_id) DO NOTHING`, now, gameID); err != nil {
+			WHERE igdb_game_id = ? ORDER BY free DESC LIMIT 1`, now, gameID); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `UPDATE games SET triage_available = EXISTS (SELECT 1 FROM triage_availability t WHERE t.game_id = games.igdb_game_id) WHERE igdb_game_id = ?`, gameID)
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM triage_availability WHERE source <> 'manual'`); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM triage_availability`); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO triage_availability (game_id, source, storefront, storefront_id, updated_at)
 		SELECT igdb_game_id, CASE WHEN MAX(free) THEN 'free' ELSE 'owned' END, MIN(storefront), MIN(storefront_id), ? FROM triage_owned
-		WHERE igdb_game_id IS NOT NULL GROUP BY igdb_game_id
-		ON CONFLICT(game_id) DO NOTHING`, now); err != nil {
+		WHERE igdb_game_id IS NOT NULL GROUP BY igdb_game_id`, now); err != nil {
 		return err
 	}
 	_, err := tx.ExecContext(ctx, `UPDATE games SET triage_available = EXISTS (SELECT 1 FROM triage_availability t WHERE t.game_id = games.igdb_game_id)`)

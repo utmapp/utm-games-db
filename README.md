@@ -12,7 +12,7 @@ A single Go binary serves the public site and a loopback-only internal API, stor
 - **UTM versions** are a curated list managed through the internal API; the report form offers a dropdown.
 - **Reporting content**: any signed-in user can report a report or comment to the maintainers with one click (not their own; content by a deleted account can be reported). Nothing public shows it, repeat clicks change nothing, and the flags disappear with the content or when a maintainer ignores them, after which the same user may report again. Rate limited like +1s.
 - **Reports** carry a rating, the UTM version and guest OS (fixed once submitted; edits can change everything else), optional issue details, a CrossOver/Wine answer and private attachments. Authors can delete a report outright while it has no comments and is under 24 h old; after that they file a deletion request for a maintainer. Own comments can always be deleted.
-- **Auto-Triage**: games the project owns on a storefront (pushed by an external owned-games service) or that are free show an "Auto-Triage available" badge; others get a "Donate a copy" button (`/games/{id}/donate`) offering gift accounts for the storefronts the game is sold on, or a demo link. The agent reports progress with a per-report triage status and may comment; `/triage` explains the pipeline. Bot comments may contain Markdown links; user content never renders links.
+- **Auto-Triage**: games the project owns on a storefront (each triage machine posts what it owns) or that are free show an "Auto-Triage available" badge; others get a "Donate a copy" button (`/games/{id}/donate`) offering gift accounts for the storefronts the game is sold on, or a demo link. The agent reports progress with a per-report triage status and may comment; `/triage` explains the pipeline. Bot comments may contain Markdown links; user content never renders links.
 - **Anti-spam** (synchronous): honeypot field, link/HTML rejection with an editable error, per-user and per-IP hourly rate limits plus a minimum gap between any two content submissions by one user (`RATE_CONTENT_INTERVAL`, default 15 s; search, previews, stars and +1s are exempt), then Akismet. Bot comments from the triage agent bypass it.
 - **Attachments** are private (uploader, operators and the triage agent only): other users cannot see them or that a report has any. They are type-checked by content, limited per file/report publicly and per user privately, and swept after `ATTACHMENT_RETENTION_DAYS`.
 - **Machine-readable twins**: every page has a JSON twin at its address plus `.json` (`/games.json`, `/games/{id}-{slug}.json`, `/games/{id}-{slug}/reports/{n}.json`, `/versions.json`), and `/reports.json` lists the 200 most recently changed reports as a polling target for triage agents. `/llms.txt` states the rules for automated readers, then maps the documents, the vocabulary and the pages. Documents are identical for every requester, carry no attachments or addresses, are purged on the same writes as the pages, and may be held by the CDN for the full TTL. Agents are read-only; accounts are for people, and the report form refuses submissions faster than a person could fill it (`CONTENT_FORM_MIN_AGE`).
@@ -63,21 +63,20 @@ Plain JSON over HTTP on the loopback listener, no authentication: the network bo
 | POST | `/internal/reports/{id}/triage` | `{status: pending\|in_progress\|needs_clarification\|fix_proposed\|wont_fix\|cannot_reproduce}` (empty clears); shown as a badge on the report. `GET /internal/reports?triage_status=none` lists untriaged reports |
 | GET | `/internal/deletion-requests?status=open` | Authors' requests to remove reports that have comments or are older than 24 h; `POST …/{id}/status {status: done\|rejected}` ("done" removes the report) |
 | GET | `/internal/triage/requests?status=open` | User gift/demo offers; `POST …/{id}/status {status}` |
-| GET/PUT | `/internal/triage/owned` | Replace the owned-games list: `[{"storefront":"steam","storefront_id":"220","free":false}, {"igdb_game_id":1234}]` |
-| POST | `/internal/triage/owned` | Add entries (same array) or update their `free` flag, keeping every other entry: one triage machine adds what it owns without replacing another's list |
+| GET | `/internal/triage/owned` | The owned-games list |
+| POST | `/internal/triage/owned` | Add entries or update their `free` flag, keeping every other entry: `[{"storefront":"steam","storefront_id":"220","free":false}, {"igdb_game_id":1234}]`. Each triage machine adds what it owns; an `igdb_game_id` entry marks any catalog game available, storefront link or not |
 | DELETE | `/internal/triage/owned/{storefront}/{storefront_id}` | Remove one entry (`/internal/triage/owned/steam/220`; itch ids keep their slash) |
-| PUT/DELETE | `/internal/triage/manual/{game_id}` | Force Auto-Triage availability on/off |
-| GET | `/internal/users`; `POST /internal/users/{id}/ban|unban` | Moderation. Users carry no address, only id, display name and `deleted_at`; banning a deleted user blocks the same address from returning |
-| GET | `/internal/users/{id}` | One user with `activity`: reports and comments (all and still visible), their flagged items and the flags on them, flags they made, spam log entries, +1s |
+| GET | `/internal/users/{id}` | One user (id, display name, `deleted_at`; never an address) with `activity`: reports and comments (all and still visible), their flagged items and the flags on them, flags they made, spam log entries, +1s |
+| POST | `/internal/users/{id}/ban`, `…/unban` | Moderation; banning a deleted user blocks the same address from returning |
 | GET | `/internal/flags?limit=` | Content users have reported (kind, target, flag count, author, excerpt, path), most recently flagged first. Removing the content with the visibility endpoints deletes its flags |
 | POST | `/internal/flags/{report\|comment}/{id}/ignore` | Delete the flags on one item without telling anyone; the reporters may flag it again |
 | GET | `/internal/spam-log?pending=&limit=`; `POST …/{id}/feedback {feedback: spam\|ham}` | Review rejections (`pending=1`: only those without feedback yet), train Akismet |
 | POST | `/internal/sync {full?, max_pages?, wait?}`; `GET /internal/sync/status` | IGDB sync |
-| POST | `/internal/games/{id}/refresh`, `/internal/games/{id}/recompute` | Re-resolve IGDB details / recompute status |
+| POST | `/internal/games/{id}/refresh` | Re-resolve a game's IGDB details and cover |
 | POST | `/internal/maintenance/sweep-attachments` | Run the retention sweeper now |
 | GET | `/internal/healthz` | Liveness |
 
-Owned-games entries are matched to catalog games through the storefront ids parsed from IGDB website links (Steam app id, GOG/Epic slug, itch `user/game`). Entries that cannot be matched yet are kept and retried when a game becomes active.
+Owned-games entries are matched to catalog games through the storefront ids parsed from IGDB website links (Steam app id, GOG/Epic slug, itch `user/game`), or directly by `igdb_game_id`. Entries that cannot be matched yet are kept and retried when a game becomes active.
 
 ## Layout
 

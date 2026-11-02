@@ -207,24 +207,6 @@ func (s *Store) AddSpamStrike(ctx context.Context, userID int64) error {
 	return err
 }
 
-// ListUsers returns users for the internal API.
-func (s *Store) ListUsers(ctx context.Context, limit int) ([]User, error) {
-	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT `+userCols+` FROM users ORDER BY id DESC LIMIT ?`, clampLimit(limit))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []User
-	for rows.Next() {
-		u, err := scanUser(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, *u)
-	}
-	return out, rows.Err()
-}
-
 func randomToken(n int) string {
 	b := make([]byte, n)
 	if _, err := rand.Read(b); err != nil {
