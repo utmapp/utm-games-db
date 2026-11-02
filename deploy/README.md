@@ -55,6 +55,16 @@ What ends up where:
 
 Day to day: `sudo ./deploy/macos/install.sh` applies any change and restarts the service; `tail -f /usr/local/gamesdb/log/gamesdb.log` follows it (group members can read it); `sudo pfctl -a gamesdb -s rules` shows the firewall rules. The internal API is the socket: on the box, `curl --unix-socket /usr/local/gamesdb/run/internal.sock http://localhost/internal/healthz`; from another machine, forward a local port to it over SSH as a group member, `ssh -L 8081:/usr/local/gamesdb/run/internal.sock administrator@host`, and use `http://127.0.0.1:8081` as before. A user added to the group sees it after logging in again. Back up with `GET /internal/backup` (next section) and keep `SECRET_KEY` with it. Nothing here lives in files macOS updates replace, so an update needs no re-setup. If the hosting provider offers its own firewall, add the same Cloudflare allowlist there too.
 
+### Operator machines
+
+A triage or backup machine needs the internal API and nothing else. `add-operator.sh` gives it exactly that:
+
+```sh
+sudo ./deploy/macos/add-operator.sh "ssh-ed25519 AAAA... triage-1"
+```
+
+It creates a hidden account (`_triage`) with no password whose only privilege is membership in the service group, installs the key with forwarding-only options in a root-owned file, and adds an `sshd` Match block that refuses the account a shell, a terminal, SFTP, agent and X11 forwarding. What remains is forwarding connections: to the internal socket, which the account may open, and to TCP ports. It can read no files; the data, settings and keys are mode 700/600 and owned by the service account. The machine connects with `ssh -N -L 8081:/usr/local/gamesdb/run/internal.sock _triage@host` and uses `http://127.0.0.1:8081`. Run the script again with another key to add a machine; it is idempotent.
+
 ## Backups
 
 Everything that cannot be regenerated lives in `/usr/local/gamesdb`: the settings file with `SECRET_KEY` (accounts are keyed by it), the TLS and DKIM keys, the SQLite database and the uploaded files. The IGDB catalog and the cover images are re-fetched by the server and are not worth backing up.
