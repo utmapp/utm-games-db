@@ -55,6 +55,8 @@ Plain JSON over HTTP on the loopback listener, no authentication: the network bo
 |---|---|---|
 | GET/POST | `/internal/utm-versions` | List / add `{version, prerelease?, released_at?}` (version is `x.y.z`) |
 | DELETE | `/internal/utm-versions/{id}` | Remove an unused version |
+| GET | `/internal/work?since=&limit=` | One call for a triage or moderation machine: visible reports created or changed since the cursor (ascending, with comments; `next_since` is the cursor for the next call and is inclusive at second resolution, so de-duplicate on `id` and `updated_at`; `reports_more` says a full page was returned), plus the open queues in full: donation requests, deletion requests, flagged content, unreviewed spam-log entries, and counts. Poll it about once a minute |
+| GET | `/internal/backup` | Streams an uncompressed tar of everything needed to rebuild the site elsewhere: `env` (settings, `SECRET_KEY`), `tls/`, `dkim/`, `db/gamesdb.sqlite` (every user and maintainer table, consistent snapshot, catalog tables empty), `uploads/`, plus `manifest.json`. The IGDB mirror and covers are left out and re-fetched after a restore. One at a time; restore with `deploy/macos/restore.sh` |
 | GET | `/internal/reports?since=&game=&visibility=&limit=` | Reports (any visibility) with configuration and attachment metadata, oldest-updated first. `anonymized` marks reports whose author deleted their account; `user_id` still identifies that account |
 | GET | `/internal/reports/{id}` | One report with all comments and the game |
 | GET | `/internal/attachments/{id}` | Download an attachment |

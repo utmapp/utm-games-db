@@ -63,6 +63,26 @@ What ends up where:
 
 Day to day: `./deploy/macos/install.sh` applies any change and restarts the service, `tail -f ~/gamesdb/log/gamesdb.log` follows it, and `sudo pfctl -a gamesdb -s rules` shows the firewall rules (loopback stays open, so `curl -k https://127.0.0.1/healthz` works on the box). The internal API stays on loopback: `ssh -L 8081:127.0.0.1:8081 user@mac` and then `curl localhost:8081/internal/healthz`. Back up `~/gamesdb/data` (SQLite via `sqlite3 gamesdb.sqlite ".backup out.sqlite"`, plus `uploads/` and `covers/`) together with `SECRET_KEY`. Because the agent lives in the login session, the site is down while nobody is logged in; the auto-login makes that only the seconds after a reboot. Nothing here lives in files macOS updates replace, so an update needs no re-setup. If the hosting provider offers its own firewall, add the same Cloudflare allowlist there too.
 
+## Backups
+
+Everything that cannot be regenerated lives in `~/gamesdb`: the settings file with `SECRET_KEY` (accounts are keyed by it), the TLS and DKIM keys, the SQLite database and the uploaded files. The IGDB catalog and the cover images are re-fetched by the server and are not worth backing up.
+
+`GET /internal/backup` on the internal API streams all of it as one uncompressed tar: `env`, `tls/`, `dkim/`, `db/gamesdb.sqlite` (a consistent copy of every user and maintainer table, with the catalog tables left empty) and `uploads/`, described by a `manifest.json`. The database copy costs time proportional to the user data, not to the catalog, and the files are streamed without compression, so the endpoint stays cheap as the site grows. One backup runs at a time, and it may take as long as the data needs.
+
+From a machine with the SSH tunnel to the internal port (see Operate below):
+
+```sh
+curl -sS -o "utmdb-backup-$(date +%Y%m%d-%H%M%S).tar" http://127.0.0.1:8081/internal/backup
+```
+
+Run that from cron on the backup machine and keep as many archives as you like; each is complete on its own. To restore, on the (new) Mac after `install-system.sh`, as the service user from the repository checkout:
+
+```sh
+./deploy/macos/restore.sh utmdb-backup-20261101-120000.tar
+```
+
+It stops the service if it runs, moves the current `~/gamesdb/data` aside as `data.pre-restore-<time>`, puts the archive's pieces in place, points the restored settings at this machine's paths, and runs `install.sh` to start the service. The server imports the catalog in the background and re-resolves covers and store links as it goes; the site is up immediately, with search filling in over a few minutes.
+
 ## Sending mail directly
 
 Sign-in codes can be delivered by the server itself instead of through an SMTP relay. With `MAIL_MODE=direct` it looks up the recipient domain's mail servers, connects on port 25 with STARTTLS where offered, signs every message with DKIM, and retries temporary refusals (greylisting) every 90 seconds in the background for `MAIL_RETRY_FOR`, which should stay below `LOGIN_CODE_TTL`. For receivers to trust the mail, DNS has to let them verify the signature (DKIM), the sending address (SPF), and that both agree with the From domain (DMARC), and the sending address needs reverse DNS. The requirements on the host are outbound port 25 and a public IP whose reverse DNS the hosting provider will set.

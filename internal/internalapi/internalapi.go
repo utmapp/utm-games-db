@@ -39,6 +39,8 @@ type Server struct {
 	// Purger invalidates the public pages a moderation write changes (nil:
 	// rely on the CDN TTL).
 	Purger cdn.Purger
+	// EnvFile overrides the settings file a backup includes (default .env).
+	EnvFile string
 }
 
 // purgeReport invalidates the list, the game page and the report page that
@@ -65,6 +67,8 @@ func (s *Server) purgeGame(ctx context.Context, gameID int64) {
 // Handler builds the router.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /internal/work", s.work)
+	mux.HandleFunc("GET /internal/backup", s.backup)
 	mux.HandleFunc("GET /internal/healthz", func(w http.ResponseWriter, r *http.Request) { ok(w, map[string]string{"status": "ok"}) })
 
 	// Versions
