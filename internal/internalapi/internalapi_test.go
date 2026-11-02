@@ -279,3 +279,18 @@ func TestSpamPendingAndUserActivity(t *testing.T) {
 		t.Fatalf("missing user = %d, want 404", code)
 	}
 }
+
+// Created responses are JSON too: a header set after WriteHeader is lost.
+func TestCreatedIsJSON(t *testing.T) {
+	dir := t.TempDir()
+	d, err := db.Open(filepath.Join(dir, "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	h := (&Server{Store: store.New(d), Log: slog.New(slog.NewTextHandler(io.Discard, nil))}).Handler()
+	resp := post(h, "/internal/utm-versions", `{"version":"5.0.8"}`)
+	if resp.StatusCode != http.StatusCreated || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
+		t.Fatalf("create version: %d %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+}

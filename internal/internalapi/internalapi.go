@@ -142,7 +142,14 @@ func (s *Server) rejectBrowsers(r *http.Request) error {
 }
 
 func ok(w http.ResponseWriter, v any) {
+	okStatus(w, http.StatusOK, v)
+}
+
+// okStatus writes v as JSON with the given success status. Headers must be
+// set before WriteHeader, or they are dropped.
+func okStatus(w http.ResponseWriter, code int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(code)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	enc.Encode(v)
@@ -223,8 +230,7 @@ func (s *Server) createVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.Log.Info("utm version added", "version", v.Version)
-	w.WriteHeader(http.StatusCreated)
-	ok(w, v)
+	okStatus(w, http.StatusCreated, v)
 }
 
 func (s *Server) deleteVersion(w http.ResponseWriter, r *http.Request) {
@@ -332,8 +338,7 @@ func (s *Server) botComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.purgeReport(r.Context(), id)
-	w.WriteHeader(http.StatusCreated)
-	ok(w, map[string]any{"comment_id": cid})
+	okStatus(w, http.StatusCreated, map[string]any{"comment_id": cid})
 }
 
 func (s *Server) reportVisibility(w http.ResponseWriter, r *http.Request) {
@@ -748,8 +753,7 @@ func (s *Server) sync(w http.ResponseWriter, r *http.Request) {
 			s.Log.Error("igdb sync", "err", err)
 		}
 	}()
-	w.WriteHeader(http.StatusAccepted)
-	ok(w, map[string]string{"status": "started"})
+	okStatus(w, http.StatusAccepted, map[string]string{"status": "started"})
 }
 
 func (s *Server) syncStatus(w http.ResponseWriter, r *http.Request) {
