@@ -54,6 +54,46 @@ func (s *Store) GetUser(ctx context.Context, id int64) (*User, error) {
 	return scanUser(s.DB.Reader.QueryRowContext(ctx, `SELECT `+userCols+` FROM users WHERE id = ?`, id))
 }
 
+// UserActivity counts what a user has posted and how it was received, for
+// moderation: whether an account is a regular or exists only to post spam.
+type UserActivity struct {
+	Reports         int `json:"reports"`         // all, any visibility
+	ReportsVisible  int `json:"reports_visible"` // still shown
+	Comments        int `json:"comments"`
+	CommentsVisible int `json:"comments_visible"`
+	FlaggedItems    int `json:"flagged_items"` // their reports and comments with open flags
+	FlagsReceived   int `json:"flags_received"`
+	FlagsMade       int `json:"flags_made"`
+	SpamLogEntries  int `json:"spam_log_entries"`
+	PlusOnes        int `json:"plus_ones"`
+}
+
+// GetUserActivity counts a user's content, flags and spam log entries.
+func (s *Store) GetUserActivity(ctx context.Context, id int64) (*UserActivity, error) {
+	var a UserActivity
+	err := s.DB.Reader.QueryRowContext(ctx, `SELECT
+		(SELECT COUNT(*) FROM reports WHERE user_id = ?1),
+		(SELECT COUNT(*) FROM reports WHERE user_id = ?1 AND visibility = 'visible'),
+		(SELECT COUNT(*) FROM comments WHERE user_id = ?1),
+		(SELECT COUNT(*) FROM comments WHERE user_id = ?1 AND visibility = 'visible'),
+		(SELECT COUNT(DISTINCT f.kind || ':' || f.target_id) FROM content_flags f
+			LEFT JOIN reports r ON f.kind = 'report' AND r.id = f.target_id
+			LEFT JOIN comments c ON f.kind = 'comment' AND c.id = f.target_id
+			WHERE COALESCE(r.user_id, c.user_id) = ?1),
+		(SELECT COUNT(*) FROM content_flags f
+			LEFT JOIN reports r ON f.kind = 'report' AND r.id = f.target_id
+			LEFT JOIN comments c ON f.kind = 'comment' AND c.id = f.target_id
+			WHERE COALESCE(r.user_id, c.user_id) = ?1),
+		(SELECT COUNT(*) FROM content_flags WHERE user_id = ?1),
+		(SELECT COUNT(*) FROM spam_log WHERE user_id = ?1),
+		(SELECT COUNT(*) FROM plus_ones WHERE user_id = ?1)`, id).Scan(
+		&a.Reports, &a.ReportsVisible, &a.Comments, &a.CommentsVisible, &a.FlaggedItems, &a.FlagsReceived, &a.FlagsMade, &a.SpamLogEntries, &a.PlusOnes)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
 // GetOrCreateUser returns the user for an email identity (auth.Keys.HashEmail),
 // creating one with a generated display name on first sign-in, and records
 // the login time.

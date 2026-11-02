@@ -86,11 +86,14 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /internal/triage/requests/{id}/status", s.triageRequestStatus)
 	mux.HandleFunc("GET /internal/triage/owned", s.listOwned)
 	mux.HandleFunc("PUT /internal/triage/owned", s.replaceOwned)
+	mux.HandleFunc("POST /internal/triage/owned", s.upsertOwned)
+	mux.HandleFunc("DELETE /internal/triage/owned/{storefront}/{storefront_id...}", s.deleteOwned)
 	mux.HandleFunc("PUT /internal/triage/manual/{id}", s.manualAvailability(true))
 	mux.HandleFunc("DELETE /internal/triage/manual/{id}", s.manualAvailability(false))
 
 	// Users / moderation
 	mux.HandleFunc("GET /internal/users", s.listUsers)
+	mux.HandleFunc("GET /internal/users/{id}", s.getUser)
 	mux.HandleFunc("POST /internal/users/{id}/ban", s.ban(true))
 	mux.HandleFunc("POST /internal/users/{id}/unban", s.ban(false))
 	mux.HandleFunc("GET /internal/flags", s.listFlags)
@@ -511,15 +514,31 @@ func (s *Server) listOwned(w http.ResponseWriter, r *http.Request) {
 	ok(w, map[string]any{"owned": list})
 }
 
-func (s *Server) replaceOwned(w http.ResponseWriter, r *http.Request) {
+// ownedBody parses a JSON array of owned entries.
+func ownedBody(w http.ResponseWriter, r *http.Request) ([]store.OwnedEntry, bool) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 32<<20))
 	if err != nil {
 		fail(w, http.StatusBadRequest, err)
-		return
+		return nil, false
 	}
 	var entries []store.OwnedEntry
 	if err := json.Unmarshal(body, &entries); err != nil || entries == nil {
 		fail(w, http.StatusBadRequest, errors.New("expected a JSON array of {storefront, storefront_id, free} or {igdb_game_id, free}; send [] to clear the list explicitly"))
+		return nil, false
+	}
+	return entries, true
+}
+
+// purgeOwned invalidates the pages that show triage availability.
+func (s *Server) purgeOwned() {
+	if s.Purger != nil {
+		s.Purger.Purge("/", store.JSONGamesPath) // game pages pick up badge changes within their TTL
+	}
+}
+
+func (s *Server) replaceOwned(w http.ResponseWriter, r *http.Request) {
+	entries, valid := ownedBody(w, r)
+	if !valid {
 		return
 	}
 	matched, err := s.Store.ReplaceOwned(r.Context(), entries)
@@ -527,11 +546,40 @@ func (s *Server) replaceOwned(w http.ResponseWriter, r *http.Request) {
 		failFor(w, err)
 		return
 	}
-	if s.Purger != nil {
-		s.Purger.Purge("/", store.JSONGamesPath) // game pages pick up badge changes within their TTL
-	}
+	s.purgeOwned()
 	s.Log.Info("owned games list replaced", "entries", len(entries), "matched", matched)
 	ok(w, map[string]any{"received": len(entries), "matched": matched})
+}
+
+// upsertOwned adds entries to the owned list (or updates their free flag)
+// without touching the others, so several triage machines can report what
+// each owns.
+func (s *Server) upsertOwned(w http.ResponseWriter, r *http.Request) {
+	entries, valid := ownedBody(w, r)
+	if !valid {
+		return
+	}
+	matched, err := s.Store.UpsertOwned(r.Context(), entries)
+	if err != nil {
+		failFor(w, err)
+		return
+	}
+	s.purgeOwned()
+	s.Log.Info("owned games added", "entries", len(entries), "matched", matched)
+	ok(w, map[string]any{"received": len(entries), "matched": matched})
+}
+
+// deleteOwned removes one entry, e.g. /internal/triage/owned/steam/220 or
+// /internal/triage/owned/itch/user/game.
+func (s *Server) deleteOwned(w http.ResponseWriter, r *http.Request) {
+	sf, id := r.PathValue("storefront"), r.PathValue("storefront_id")
+	if err := s.Store.DeleteOwned(r.Context(), sf, id); err != nil {
+		failFor(w, err)
+		return
+	}
+	s.purgeOwned()
+	s.Log.Info("owned game removed", "storefront", sf, "storefront_id", id)
+	ok(w, map[string]any{"deleted": map[string]string{"storefront": sf, "storefront_id": id}})
 }
 
 func (s *Server) manualAvailability(on bool) http.HandlerFunc {
@@ -565,6 +613,27 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request) {
 	ok(w, map[string]any{"users": users})
 }
 
+// getUser returns one user with counts of their content, flags and spam log
+// entries.
+func (s *Server) getUser(w http.ResponseWriter, r *http.Request) {
+	id, err := pathID(r)
+	if err != nil {
+		fail(w, http.StatusBadRequest, err)
+		return
+	}
+	u, err := s.Store.GetUser(r.Context(), id)
+	if err != nil {
+		failFor(w, err)
+		return
+	}
+	act, err := s.Store.GetUserActivity(r.Context(), id)
+	if err != nil {
+		failFor(w, err)
+		return
+	}
+	ok(w, map[string]any{"user": u, "activity": act})
+}
+
 func (s *Server) ban(banned bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := pathID(r)
@@ -583,7 +652,8 @@ func (s *Server) ban(banned bool) http.HandlerFunc {
 
 func (s *Server) listSpam(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	entries, err := s.Store.ListSpam(r.Context(), limit)
+	pending, _ := strconv.ParseBool(r.URL.Query().Get("pending"))
+	entries, err := s.Store.ListSpam(r.Context(), limit, pending)
 	if err != nil {
 		failFor(w, err)
 		return

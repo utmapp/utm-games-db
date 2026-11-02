@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -167,5 +168,114 @@ func TestFlagsListAndIgnore(t *testing.T) {
 	body, _ = io.ReadAll(resp.Body)
 	if strings.Contains(string(body), "Spam spam spam") {
 		t.Fatalf("flag still listed after ignore: %s", body)
+	}
+}
+
+func get(h http.Handler, path string) (int, string) {
+	resp := do(h, httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8081"+path, nil))
+	body, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, string(body)
+}
+
+// Owned entries can be added and removed one at a time without replacing
+// what other triage machines reported, and availability follows.
+func TestOwnedUpsertAndDelete(t *testing.T) {
+	dir := t.TempDir()
+	d, err := db.Open(filepath.Join(dir, "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	ctx := context.Background()
+	for _, q := range []string{
+		`INSERT INTO igdb_games (id, name, slug, raw_json, synced_at) VALUES (1, 'Portal 2', 'portal-2', '{}', 0)`,
+		`INSERT INTO igdb_websites (id, game_id, url, storefront, storefront_id) VALUES (1, 1, 'https://store.steampowered.com/app/620', 'steam', '620')`,
+		`INSERT INTO games (igdb_game_id, activated_at, report_count, updated_at) VALUES (1, 0, 1, 0)`,
+	} {
+		if _, err := d.Writer.ExecContext(ctx, q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st := store.New(d)
+	h := (&Server{Store: st, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}).Handler()
+	available := func() bool {
+		var on bool
+		if err := d.Reader.QueryRowContext(ctx, `SELECT triage_available FROM games WHERE igdb_game_id = 1`).Scan(&on); err != nil {
+			t.Fatal(err)
+		}
+		return on
+	}
+
+	req := httptest.NewRequest(http.MethodPut, "http://127.0.0.1:8081/internal/triage/owned", strings.NewReader(`[{"storefront":"gog","storefront_id":"other-machine"}]`))
+	if resp := do(h, req); resp.StatusCode != 200 {
+		t.Fatalf("put = %d", resp.StatusCode)
+	}
+	if resp := post(h, "/internal/triage/owned", `[{"storefront":"Steam","storefront_id":"620"}]`); resp.StatusCode != 200 {
+		t.Fatalf("upsert = %d", resp.StatusCode)
+	}
+	if code, body := get(h, "/internal/triage/owned"); code != 200 || !strings.Contains(body, `"other-machine"`) || !strings.Contains(body, `"620"`) {
+		t.Fatalf("upsert must keep the other entries: %d %s", code, body)
+	}
+	if !available() {
+		t.Fatal("game should be triage-available after the upsert")
+	}
+	del := func(path string) int {
+		return do(h, httptest.NewRequest(http.MethodDelete, "http://127.0.0.1:8081"+path, nil)).StatusCode
+	}
+	if code := del("/internal/triage/owned/steam/620"); code != 200 {
+		t.Fatalf("delete = %d", code)
+	}
+	if available() {
+		t.Fatal("game should not be triage-available after its entry is deleted")
+	}
+	if code := del("/internal/triage/owned/steam/620"); code != 404 {
+		t.Fatalf("second delete = %d, want 404", code)
+	}
+	if _, body := get(h, "/internal/triage/owned"); !strings.Contains(body, `"other-machine"`) {
+		t.Fatalf("delete removed another entry: %s", body)
+	}
+}
+
+// The spam log can be limited to entries nobody has reviewed, and a user's
+// page counts their content and flags.
+func TestSpamPendingAndUserActivity(t *testing.T) {
+	dir := t.TempDir()
+	d, err := db.Open(filepath.Join(dir, "t.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { d.Close() })
+	ctx := context.Background()
+	d.Writer.ExecContext(ctx, `INSERT INTO igdb_games (id, name, slug, raw_json, synced_at) VALUES (1, 'Portal 2', 'portal-2', '{}', 0)`)
+	st := store.New(d)
+	v, _ := st.CreateVersion(ctx, "5.0.7", false, nil)
+	author, _ := st.GetOrCreateUser(ctx, "author")
+	reporter, _ := st.GetOrCreateUser(ctx, "reporter")
+	rid, err := st.CreateReport(ctx, store.ReportInput{GameID: 1, UserID: author.ID, Rating: status.Playable, Description: "buy cheap", Config: store.ConfigInput{VersionID: v.ID, GuestOS: "windows", GraphicsBackend: "unknown"}}, nil, store.Quotas{DailyBytes: 1, DailyFiles: 1, TotalBytes: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Flag(ctx, store.FlagReport, rid, reporter.ID); err != nil {
+		t.Fatal(err)
+	}
+	st.LogSpam(ctx, author.ID, "report", `{"fields":{"description":"first"}}`, "spam")
+	st.LogSpam(ctx, author.ID, "comment", `{"fields":{"body":"second"}}`, "discard")
+	st.SetSpamFeedback(ctx, 1, "spam")
+	h := (&Server{Store: st, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}).Handler()
+
+	if _, body := get(h, "/internal/spam-log?pending=1"); strings.Contains(body, "first") || !strings.Contains(body, "second") {
+		t.Fatalf("pending spam log: %s", body)
+	}
+	if _, body := get(h, "/internal/spam-log"); !strings.Contains(body, "first") || !strings.Contains(body, "second") {
+		t.Fatalf("full spam log: %s", body)
+	}
+	code, body := get(h, "/internal/users/"+strconv.FormatInt(author.ID, 10))
+	for _, want := range []string{`"reports": 1`, `"reports_visible": 1`, `"flagged_items": 1`, `"flags_received": 1`, `"spam_log_entries": 2`, `"flags_made": 0`} {
+		if code != 200 || !strings.Contains(body, want) {
+			t.Fatalf("user activity lacks %s: %d %s", want, code, body)
+		}
+	}
+	if code, _ := get(h, "/internal/users/999"); code != 404 {
+		t.Fatalf("missing user = %d, want 404", code)
 	}
 }

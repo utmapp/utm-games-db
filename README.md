@@ -64,11 +64,14 @@ Plain JSON over HTTP on the loopback listener, no authentication: the network bo
 | GET | `/internal/deletion-requests?status=open` | Authors' requests to remove reports that have comments or are older than 24 h; `POST …/{id}/status {status: done\|rejected}` ("done" removes the report) |
 | GET | `/internal/triage/requests?status=open` | User gift/demo offers; `POST …/{id}/status {status}` |
 | GET/PUT | `/internal/triage/owned` | Replace the owned-games list: `[{"storefront":"steam","storefront_id":"220","free":false}, {"igdb_game_id":1234}]` |
+| POST | `/internal/triage/owned` | Add entries (same array) or update their `free` flag, keeping every other entry: one triage machine adds what it owns without replacing another's list |
+| DELETE | `/internal/triage/owned/{storefront}/{storefront_id}` | Remove one entry (`/internal/triage/owned/steam/220`; itch ids keep their slash) |
 | PUT/DELETE | `/internal/triage/manual/{game_id}` | Force Auto-Triage availability on/off |
 | GET | `/internal/users`; `POST /internal/users/{id}/ban|unban` | Moderation. Users carry no address, only id, display name and `deleted_at`; banning a deleted user blocks the same address from returning |
+| GET | `/internal/users/{id}` | One user with `activity`: reports and comments (all and still visible), their flagged items and the flags on them, flags they made, spam log entries, +1s |
 | GET | `/internal/flags?limit=` | Content users have reported (kind, target, flag count, author, excerpt, path), most recently flagged first. Removing the content with the visibility endpoints deletes its flags |
 | POST | `/internal/flags/{report\|comment}/{id}/ignore` | Delete the flags on one item without telling anyone; the reporters may flag it again |
-| GET | `/internal/spam-log`; `POST …/{id}/feedback {feedback: spam\|ham}` | Review rejections, train Akismet |
+| GET | `/internal/spam-log?pending=&limit=`; `POST …/{id}/feedback {feedback: spam\|ham}` | Review rejections (`pending=1`: only those without feedback yet), train Akismet |
 | POST | `/internal/sync {full?, max_pages?, wait?}`; `GET /internal/sync/status` | IGDB sync |
 | POST | `/internal/games/{id}/refresh`, `/internal/games/{id}/recompute` | Re-resolve IGDB details / recompute status |
 | POST | `/internal/maintenance/sweep-attachments` | Run the retention sweeper now |

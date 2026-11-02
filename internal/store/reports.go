@@ -909,9 +909,14 @@ func nullInt64(n int64) any {
 	return n
 }
 
-// ListSpam returns recent spam log entries.
-func (s *Store) ListSpam(ctx context.Context, limit int) ([]SpamEntry, error) {
-	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT id, COALESCE(user_id, 0), kind, payload_json, akismet_result, COALESCE(feedback, ''), created_at FROM spam_log ORDER BY id DESC LIMIT ?`, clampLimit(limit))
+// ListSpam returns recent spam log entries, newest first; pending limits them
+// to entries nobody has given feedback on yet.
+func (s *Store) ListSpam(ctx context.Context, limit int, pending bool) ([]SpamEntry, error) {
+	where := `1`
+	if pending {
+		where = `feedback IS NULL`
+	}
+	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT id, COALESCE(user_id, 0), kind, payload_json, akismet_result, COALESCE(feedback, ''), created_at FROM spam_log WHERE `+where+` ORDER BY id DESC LIMIT ?`, clampLimit(limit))
 	if err != nil {
 		return nil, err
 	}

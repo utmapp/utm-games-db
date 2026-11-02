@@ -80,6 +80,45 @@ func (s *Store) SetTriageRequestStatus(ctx context.Context, id int64, st string)
 	return nil
 }
 
+// normalizeOwned returns the (storefront, storefront_id) key an owned entry is
+// stored under, or ok=false for an entry without one. Storefront ids other
+// than IGDB's are matched case-insensitively.
+func normalizeOwned(e OwnedEntry) (store, id string, ok bool) {
+	store = strings.ToLower(strings.TrimSpace(e.Storefront))
+	id = strings.TrimSpace(e.StorefrontID)
+	if e.IGDBGameID != 0 && store == "" {
+		store = "igdb"
+	}
+	if store == "igdb" && id == "" && e.IGDBGameID != 0 {
+		id = strconv.FormatInt(e.IGDBGameID, 10)
+	}
+	if store == "" || id == "" {
+		return "", "", false
+	}
+	if store != "igdb" {
+		id = strings.ToLower(id)
+	}
+	return store, id, true
+}
+
+// putOwned inserts or updates entries and rematches availability.
+func putOwned(ctx context.Context, tx *sql.Tx, entries []OwnedEntry, now int64) (matched int, err error) {
+	for _, e := range entries {
+		store, id, ok := normalizeOwned(e)
+		if !ok {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO triage_owned (storefront, storefront_id, free, received_at) VALUES (?, ?, ?, ?) ON CONFLICT(storefront, storefront_id) DO UPDATE SET free = excluded.free, received_at = excluded.received_at`, store, id, e.Free, now); err != nil {
+			return 0, err
+		}
+	}
+	if err := igdb.MatchOwned(ctx, tx, 0); err != nil {
+		return 0, err
+	}
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM triage_owned WHERE igdb_game_id IS NOT NULL`).Scan(&matched)
+	return matched, err
+}
+
 // ReplaceOwned replaces the owned-games list and rematches availability.
 func (s *Store) ReplaceOwned(ctx context.Context, entries []OwnedEntry) (matched int, err error) {
 	now := time.Now().Unix()
@@ -87,31 +126,46 @@ func (s *Store) ReplaceOwned(ctx context.Context, entries []OwnedEntry) (matched
 		if _, err := tx.ExecContext(ctx, `DELETE FROM triage_owned`); err != nil {
 			return err
 		}
-		for _, e := range entries {
-			store := strings.ToLower(strings.TrimSpace(e.Storefront))
-			id := strings.TrimSpace(e.StorefrontID)
-			if e.IGDBGameID != 0 && store == "" {
-				store = "igdb"
-			}
-			if store == "igdb" && id == "" && e.IGDBGameID != 0 {
-				id = strconv.FormatInt(e.IGDBGameID, 10)
-			}
-			if store == "" || id == "" {
-				continue
-			}
-			if store != "igdb" {
-				id = strings.ToLower(id)
-			}
-			if _, err := tx.ExecContext(ctx, `INSERT INTO triage_owned (storefront, storefront_id, free, received_at) VALUES (?, ?, ?, ?) ON CONFLICT(storefront, storefront_id) DO UPDATE SET free = excluded.free, received_at = excluded.received_at`, store, id, e.Free, now); err != nil {
-				return err
-			}
-		}
-		if err := igdb.MatchOwned(ctx, tx, 0); err != nil {
-			return err
-		}
-		return tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM triage_owned WHERE igdb_game_id IS NOT NULL`).Scan(&matched)
+		matched, err = putOwned(ctx, tx, entries, now)
+		return err
 	})
 	return
+}
+
+// UpsertOwned adds entries to the owned-games list, or updates the free flag
+// of entries already on it, leaving every other entry alone. Several triage
+// machines can each add what they own without replacing each other's.
+func (s *Store) UpsertOwned(ctx context.Context, entries []OwnedEntry) (matched int, err error) {
+	now := time.Now().Unix()
+	err = s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
+		matched, err = putOwned(ctx, tx, entries, now)
+		return err
+	})
+	return
+}
+
+// DeleteOwned removes one entry from the owned-games list and recomputes the
+// availability of the game it matched. ErrNotFound when there is no such
+// entry.
+func (s *Store) DeleteOwned(ctx context.Context, storefront, storefrontID string) error {
+	store, id, ok := normalizeOwned(OwnedEntry{Storefront: storefront, StorefrontID: storefrontID})
+	if !ok {
+		return ErrNotFound
+	}
+	return s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
+		var gameID sql.NullInt64
+		err := tx.QueryRowContext(ctx, `DELETE FROM triage_owned WHERE storefront = ? AND storefront_id = ? RETURNING igdb_game_id`, store, id).Scan(&gameID)
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if !gameID.Valid {
+			return nil
+		}
+		return igdb.RebuildAvailability(ctx, tx, gameID.Int64)
+	})
 }
 
 // SetManualAvailability marks or unmarks a game as triage-available by hand.
