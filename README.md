@@ -2,7 +2,7 @@
 
 Community compatibility reports for running PC games in [UTM](https://getutm.app), served at **db.getutm.app**.
 
-A single Go binary serves the public site and a loopback-only internal API, stores everything in one SQLite file, mirrors the IGDB PC game catalog, and keeps uploads and cover art on local disk. Cloudflare sits in front purely as a CDN.
+A single Go binary serves the public site and an internal API on a Unix socket, stores everything in one SQLite file, mirrors the IGDB PC game catalog, and keeps uploads and cover art on local disk. Cloudflare sits in front purely as a CDN.
 
 ## How it works
 
@@ -49,7 +49,7 @@ See [deploy/README.md](deploy/README.md): Docker Compose on a Linux VPS, the bar
 
 ## Internal API
 
-Plain JSON over HTTP on the loopback listener, no authentication: the network boundary is the protection. Requests that carry browser headers (`Origin`, `Sec-Fetch-Site`) or a non-loopback `Host` are refused, so a web page open on the operator's machine cannot reach the API through the SSH tunnel. All routes are under `/internal/`.
+Plain JSON over HTTP on a Unix socket (`INTERNAL_LISTEN_ADDR`, an absolute path; file permissions decide who may use it, and from another machine it is reached through an SSH tunnel, `ssh -L 8081:/path/to/internal.sock user@host`) or, in development, a loopback TCP address. No authentication of its own: the socket's permissions, or the network boundary, are the protection. Requests that carry browser headers (`Origin`, `Sec-Fetch-Site`) or a non-loopback `Host` are refused, so a web page open on the operator's machine cannot reach the API through the SSH tunnel. All routes are under `/internal/`.
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -96,7 +96,7 @@ internal/markdown    goldmark renderer: links disabled for users, allowed for th
 internal/upload      attachment validation, storage and download
 internal/cdn         cache headers, ETag, optional purge hook
 internal/web         public site: handlers, templates, static assets
-internal/internalapi loopback JSON API (refuses browser requests)
+internal/internalapi internal JSON API on a Unix socket (refuses browser requests)
 deploy/              deployment notes, launchd/pf files for the macOS host, Docker files for a VPS
 ```
 

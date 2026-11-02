@@ -220,7 +220,7 @@ func serve(cfg *config.Config, log *slog.Logger) error {
 	})
 	go runPeriodic(ctx, log, "auth cleanup", 6*time.Hour, true, au.Cleanup)
 
-	internalLn, err := net.Listen("tcp", cfg.InternalListenAddr)
+	internalLn, err := internalapi.Listen(cfg.InternalListenAddr)
 	if err != nil {
 		return fmt.Errorf("internal listener: %w", err)
 	}
@@ -245,7 +245,7 @@ func serve(cfg *config.Config, log *slog.Logger) error {
 		go func() { errCh <- pubSrv.Serve(publicLn) }()
 	}
 	go func() { errCh <- intSrv.Serve(internalLn) }()
-	log.Info("serving", "public", publicLn.Addr().String(), "tls", cfg.TLSCert != "", "internal", internalLn.Addr().String(), "base_url", cfg.BaseURL.String(), "data_dir", cfg.DataDir)
+	log.Info("serving", "public", publicLn.Addr().String(), "tls", cfg.TLSCert != "", "internal", cfg.InternalListenAddr, "base_url", cfg.BaseURL.String(), "data_dir", cfg.DataDir)
 
 	select {
 	case <-ctx.Done():

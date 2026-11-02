@@ -318,12 +318,15 @@ func Load() (*Config, error) {
 	c.ExportInterval = getDur("EXPORT_INTERVAL", 24*time.Hour)
 	c.ExportMinAttachmentAge = getDur("EXPORT_MIN_ATTACHMENT_AGE", 48*time.Hour)
 
-	if !c.InternalAllowNonLoopback {
+	// The internal API listens on a Unix socket (an absolute path; who may
+	// use it is decided by file permissions) or, for development, a loopback
+	// TCP address.
+	if !c.InternalAllowNonLoopback && !strings.HasPrefix(c.InternalListenAddr, "/") {
 		host, _, err := net.SplitHostPort(c.InternalListenAddr)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("INTERNAL_LISTEN_ADDR: %w", err))
 		} else if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
-			errs = append(errs, fmt.Errorf("INTERNAL_LISTEN_ADDR %q must bind a loopback address (set INTERNAL_ALLOW_NONLOOPBACK=1 to override)", c.InternalListenAddr))
+			errs = append(errs, fmt.Errorf("INTERNAL_LISTEN_ADDR %q must be a socket path or a loopback address (set INTERNAL_ALLOW_NONLOOPBACK=1 to override)", c.InternalListenAddr))
 		}
 	}
 	if len(errs) > 0 {
