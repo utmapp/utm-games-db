@@ -83,6 +83,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /internal/reports/{id}/comments", s.botComment)
 	mux.HandleFunc("POST /internal/reports/{id}/visibility", s.reportVisibility)
 	mux.HandleFunc("POST /internal/reports/{id}/triage", s.reportTriage)
+	mux.HandleFunc("GET /internal/reports/{id}/lease", s.leaseGet)
+	mux.HandleFunc("POST /internal/reports/{id}/lease", s.leaseAcquire)
+	mux.HandleFunc("DELETE /internal/reports/{id}/lease", s.leaseRelease)
 	mux.HandleFunc("POST /internal/comments/{id}/visibility", s.commentVisibility)
 	mux.HandleFunc("GET /internal/deletion-requests", s.listDeletionRequests)
 	mux.HandleFunc("POST /internal/deletion-requests/{id}/status", s.deletionRequestStatus)
@@ -164,7 +167,7 @@ func failFor(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		fail(w, http.StatusNotFound, err)
-	case errors.Is(err, store.ErrVersionInUse), errors.Is(err, store.ErrGameInactive):
+	case errors.Is(err, store.ErrVersionInUse), errors.Is(err, store.ErrGameInactive), errors.Is(err, store.ErrAlreadyResolved):
 		fail(w, http.StatusConflict, err)
 	default:
 		fail(w, http.StatusInternalServerError, err)
@@ -296,7 +299,15 @@ func (s *Server) getReport(w http.ResponseWriter, r *http.Request) {
 		failFor(w, err)
 		return
 	}
-	ok(w, map[string]any{"report": rep, "game": g})
+	out := map[string]any{"report": rep, "game": g}
+	l, err := s.Store.GetTriageLease(r.Context(), id)
+	if err == nil {
+		out["lease"] = l
+	} else if !errors.Is(err, store.ErrNotFound) {
+		failFor(w, err)
+		return
+	}
+	ok(w, out)
 }
 
 func (s *Server) getAttachment(w http.ResponseWriter, r *http.Request) {
@@ -329,6 +340,12 @@ func (s *Server) botComment(w http.ResponseWriter, r *http.Request) {
 	in.Body = strings.TrimSpace(in.Body)
 	if in.Body == "" || len(in.Body) > 20000 {
 		fail(w, http.StatusBadRequest, errors.New("body_md must be 1–20000 characters"))
+		return
+	}
+	if err := s.Store.CheckTriageWriter(r.Context(), id, holderOf(r)); err != nil {
+		if !failLease(w, err) {
+			failFor(w, err)
+		}
 		return
 	}
 	cid, err := s.Store.AddComment(r.Context(), store.CommentInput{ReportID: id, Bot: true, Body: in.Body})
@@ -380,6 +397,26 @@ func (s *Server) reportTriage(w http.ResponseWriter, r *http.Request) {
 		fail(w, http.StatusBadRequest, err)
 		return
 	}
+	holder := holderOf(r)
+	if err := s.Store.CheckTriageWriter(r.Context(), id, holder); err != nil {
+		if !failLease(w, err) {
+			failFor(w, err)
+		}
+		return
+	}
+	if in.Status == "in_progress" && holder != "" {
+		// A machine must hold the lease while it works, or its death would
+		// never show in stale_triage (only a lease that expired does).
+		l, err := s.Store.GetTriageLease(r.Context(), id)
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			failFor(w, err)
+			return
+		}
+		if err != nil || !l.Active || l.Holder != holder {
+			fail(w, http.StatusConflict, fmt.Errorf("%s must take the report's lease (POST /internal/reports/%d/lease) before setting in_progress", holder, id))
+			return
+		}
+	}
 	if err := s.Store.SetTriageStatus(r.Context(), id, in.Status); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			failFor(w, err)
@@ -388,8 +425,19 @@ func (s *Server) reportTriage(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	// in progress by hand (no holder): not an abandoned machine, so an
+	// expired row goes; any other status ends the caller's lease
+	if in.Status == "in_progress" && holder == "" {
+		if err := s.Store.ForgetInactiveTriageLease(r.Context(), id); err != nil {
+			s.Log.Warn("forget lease", "report", id, "err", err)
+		}
+	} else if in.Status != "in_progress" && holder != "" {
+		if err := s.Store.ReleaseTriageLease(r.Context(), id, holder); err != nil {
+			s.Log.Warn("release lease", "report", id, "err", err)
+		}
+	}
 	s.purgeReport(r.Context(), id)
-	s.Log.Info("report triage status set", "report", id, "status", in.Status)
+	s.Log.Info("report triage status set", "report", id, "status", in.Status, "holder", holder)
 	ok(w, map[string]any{"report": id, "triage_status": in.Status})
 }
 
@@ -452,7 +500,7 @@ func (s *Server) deletionRequestStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	reportID, paths, err := s.Store.ResolveDeletionRequest(r.Context(), id, in.Status)
 	if err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrAlreadyResolved) {
 			failFor(w, err)
 		} else {
 			fail(w, http.StatusBadRequest, err)
@@ -496,7 +544,7 @@ func (s *Server) triageRequestStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Store.SetTriageRequestStatus(r.Context(), id, in.Status); err != nil {
-		if errors.Is(err, store.ErrNotFound) {
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, store.ErrAlreadyResolved) {
 			failFor(w, err)
 		} else {
 			fail(w, http.StatusBadRequest, err)
@@ -646,20 +694,29 @@ func (s *Server) spamFeedback(w http.ResponseWriter, r *http.Request) {
 		failFor(w, err)
 		return
 	}
+	var payload struct {
+		Fields    map[string]string `json:"fields"`
+		IP        string            `json:"ip"`
+		UA        string            `json:"ua"`
+		Referrer  string            `json:"referrer"`
+		Author    string            `json:"author"`
+		Permalink string            `json:"permalink"`
+		Type      string            `json:"type"`
+	}
 	if s.Akismet.Enabled() {
-		var payload struct {
-			Fields    map[string]string `json:"fields"`
-			IP        string            `json:"ip"`
-			UA        string            `json:"ua"`
-			Referrer  string            `json:"referrer"`
-			Author    string            `json:"author"`
-			Permalink string            `json:"permalink"`
-			Type      string            `json:"type"`
-		}
 		if err := json.Unmarshal([]byte(entry.Payload), &payload); err != nil {
 			fail(w, http.StatusInternalServerError, fmt.Errorf("spam log payload: %w", err))
 			return
 		}
+	}
+	// Akismet must not be trained twice on one submission: the entry is
+	// claimed first (409 for every other machine), then trained; a claim
+	// whose training failed is undone so the entry is pending again.
+	if err := s.Store.ClaimSpamFeedback(r.Context(), id, in.Feedback); err != nil {
+		failFor(w, err)
+		return
+	}
+	if s.Akismet.Enabled() {
 		c := antispam.Comment{UserIP: payload.IP, UserAgent: payload.UA, Referrer: payload.Referrer, Type: payload.Type, Author: payload.Author, Content: antispam.JoinFields(payload.Fields), Permalink: payload.Permalink}
 		if in.Feedback == "ham" {
 			err = s.Akismet.SubmitHam(r.Context(), c)
@@ -667,13 +724,13 @@ func (s *Server) spamFeedback(w http.ResponseWriter, r *http.Request) {
 			err = s.Akismet.SubmitSpam(r.Context(), c)
 		}
 		if err != nil {
+			// not the request's context: the client may be gone by now
+			if cerr := s.Store.ClearSpamFeedback(context.WithoutCancel(r.Context()), id, in.Feedback); cerr != nil {
+				s.Log.Error("spam feedback: undo claim", "entry", id, "err", cerr)
+			}
 			fail(w, http.StatusBadGateway, err)
 			return
 		}
-	}
-	if err := s.Store.SetSpamFeedback(r.Context(), id, in.Feedback); err != nil {
-		failFor(w, err)
-		return
 	}
 	ok(w, map[string]any{"entry": id, "feedback": in.Feedback, "sent_to_akismet": s.Akismet.Enabled()})
 }
@@ -779,6 +836,10 @@ func (s *Server) ignoreFlags(w http.ResponseWriter, r *http.Request) {
 	n, err := s.Store.IgnoreFlags(r.Context(), kind, id)
 	if err != nil {
 		failFor(w, err)
+		return
+	}
+	if n == 0 {
+		failFor(w, fmt.Errorf("%w: %s %d has no flags", store.ErrAlreadyResolved, kind, id))
 		return
 	}
 	s.Log.Info("flags ignored", "kind", kind, "target", id, "flags", n)

@@ -41,9 +41,7 @@ func (s *Server) work(w http.ResponseWriter, r *http.Request) {
 		since = t
 	}
 	limit, _ := strconv.Atoi(q.Get("limit"))
-	if limit <= 0 {
-		limit = 100
-	}
+	limit = store.ClampLimit(limit) // the page size ListReports uses, so a short page means no more
 	ctx := r.Context()
 	now := time.Now().UTC().Truncate(time.Second)
 	reports, err := s.Store.ListReports(ctx, since, 0, "visible", "", limit)
@@ -77,6 +75,20 @@ func (s *Server) work(w http.ResponseWriter, r *http.Request) {
 		failFor(w, err)
 		return
 	}
+	ids := make([]int64, len(reports))
+	for i := range reports {
+		ids[i] = reports[i].ID
+	}
+	leases, err := s.Store.TriageLeases(ctx, ids)
+	if err != nil {
+		failFor(w, err)
+		return
+	}
+	stale, err := s.Store.StaleTriage(ctx)
+	if err != nil {
+		failFor(w, err)
+		return
+	}
 	untriaged, err := s.Store.CountUntriaged(ctx)
 	if err != nil {
 		failFor(w, err)
@@ -100,6 +112,10 @@ func (s *Server) work(w http.ResponseWriter, r *http.Request) {
 		"deletion_requests": orEmpty(deletions),
 		"flags":             orEmpty(flags),
 		"spam_pending":      orEmpty(spam),
+		// the lease row of each report above that has one, by report id, and
+		// the reports in progress whose machine stopped renewing its lease
+		"triage_leases": leases,
+		"stale_triage":  orEmpty(stale),
 		"counts": map[string]int{
 			"untriaged_reports":      untriaged,
 			"open_donation_requests": len(donations),

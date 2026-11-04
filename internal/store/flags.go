@@ -85,7 +85,7 @@ func (s *Store) ListFlags(ctx context.Context, limit int) ([]FlaggedItem, error)
 		LEFT JOIN igdb_games grc ON grc.id = rc.game_id
 		GROUP BY f.kind, f.target_id
 		ORDER BY MAX(f.created_at) DESC
-		LIMIT ?`, clampLimit(limit))
+		LIMIT ?`, ClampLimit(limit))
 	if err != nil {
 		return nil, err
 	}

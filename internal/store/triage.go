@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -38,9 +39,9 @@ func (s *Store) CreateTriageRequest(ctx context.Context, gameID, userID int64, k
 // status.
 func (s *Store) ListTriageRequests(ctx context.Context, st string, limit int) ([]TriageRequest, error) {
 	if st == "" {
-		return s.triageRequests(ctx, `1`, `t.id DESC`, clampLimit(limit))
+		return s.triageRequests(ctx, `1`, `t.id DESC`, ClampLimit(limit))
 	}
-	return s.triageRequests(ctx, `t.status = ?`, `t.id DESC`, clampLimit(limit), st)
+	return s.triageRequests(ctx, `t.status = ?`, `t.id DESC`, ClampLimit(limit), st)
 }
 
 // triageRequests runs the triage request query with a filter and order;
@@ -70,12 +71,19 @@ func (s *Store) SetTriageRequestStatus(ctx context.Context, id int64, st string)
 	if st != "open" && st != "done" && st != "rejected" {
 		return errors.New("invalid status")
 	}
-	res, err := s.DB.Writer.ExecContext(ctx, `UPDATE triage_requests SET status = ? WHERE id = ?`, st, id)
+	res, err := s.DB.Writer.ExecContext(ctx, `UPDATE triage_requests SET status = ? WHERE id = ? AND (status = 'open' OR ? = 'open')`, st, id, st)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return ErrNotFound
+		var cur string
+		if err := s.DB.Writer.QueryRowContext(ctx, `SELECT status FROM triage_requests WHERE id = ?`, id).Scan(&cur); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		return fmt.Errorf("%w: request %d is %s", ErrAlreadyResolved, id, cur)
 	}
 	return nil
 }

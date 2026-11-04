@@ -11,7 +11,7 @@ var BackupTables = []string{
 	"schema_migrations",
 	"users", "sessions",
 	"utm_versions",
-	"games", "stars", "configurations", "reports", "comments", "plus_ones", "attachments",
+	"games", "stars", "configurations", "reports", "triage_leases", "comments", "plus_ones", "attachments",
 	"upload_ledger", "spam_log",
 	"triage_owned", "triage_availability", "triage_requests", "deletion_requests", "content_flags",
 }

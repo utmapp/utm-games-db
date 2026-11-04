@@ -322,7 +322,7 @@ func (s *Store) SetTriageStatus(ctx context.Context, reportID int64, st string) 
 // view's polling target and is served from a fixed URL so the CDN can hold
 // it; nothing in it depends on who is asking.
 func (s *Store) RecentReports(ctx context.Context, limit int) ([]Report, error) {
-	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT `+reportCols+reportFrom+` WHERE r.visibility = 'visible' ORDER BY r.updated_at DESC, r.id DESC LIMIT ?`, clampLimit(limit))
+	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT `+reportCols+reportFrom+` WHERE r.visibility = 'visible' ORDER BY r.updated_at DESC, r.id DESC LIMIT ?`, ClampLimit(limit))
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +372,7 @@ func (s *Store) ListReports(ctx context.Context, since time.Time, gameID int64, 
 		where = append(where, "r.triage_status = ?")
 		args = append(args, triageStatus)
 	}
-	args = append(args, clampLimit(limit))
+	args = append(args, ClampLimit(limit))
 	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT `+reportCols+reportFrom+` WHERE `+strings.Join(where, " AND ")+` ORDER BY r.updated_at ASC, r.id ASC LIMIT ?`, args...)
 	if err != nil {
 		return nil, err
@@ -734,9 +734,9 @@ func (s *Store) HasOpenDeletionRequest(ctx context.Context, reportID int64) (boo
 // by status.
 func (s *Store) ListDeletionRequests(ctx context.Context, st string, limit int) ([]DeletionRequest, error) {
 	if st == "" {
-		return s.deletionRequests(ctx, `1`, `d.id DESC`, clampLimit(limit))
+		return s.deletionRequests(ctx, `1`, `d.id DESC`, ClampLimit(limit))
 	}
-	return s.deletionRequests(ctx, `d.status = ?`, `d.id DESC`, clampLimit(limit), st)
+	return s.deletionRequests(ctx, `d.status = ?`, `d.id DESC`, ClampLimit(limit), st)
 }
 
 // deletionRequests runs the deletion request query with a filter and order;
@@ -761,8 +761,10 @@ func (s *Store) deletionRequests(ctx context.Context, where, order string, limit
 	return out, rows.Err()
 }
 
-// clampLimit bounds a listing size from the internal API (default 100).
-func clampLimit(limit int) int {
+// ClampLimit bounds a listing size from the internal API (default 100): the
+// size every listing actually uses, for a caller that reasons about page
+// boundaries.
+func ClampLimit(limit int) int {
 	if limit <= 0 || limit > 500 {
 		return 100
 	}
@@ -779,11 +781,15 @@ func (s *Store) ResolveDeletionRequest(ctx context.Context, id int64, st string)
 	}
 	now := time.Now().Unix()
 	err = s.DB.WriteTx(ctx, func(tx *sql.Tx) error {
-		if err := tx.QueryRowContext(ctx, `SELECT report_id FROM deletion_requests WHERE id = ?`, id).Scan(&reportID); err != nil {
+		var cur string
+		if err := tx.QueryRowContext(ctx, `SELECT report_id, status FROM deletion_requests WHERE id = ?`, id).Scan(&reportID, &cur); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return ErrNotFound
 			}
 			return err
+		}
+		if cur != "open" && st != "open" {
+			return fmt.Errorf("%w: deletion request %d is %s", ErrAlreadyResolved, id, cur)
 		}
 		if _, err := tx.ExecContext(ctx, `UPDATE deletion_requests SET status = ? WHERE id = ?`, st, id); err != nil {
 			return err
@@ -916,7 +922,7 @@ func (s *Store) ListSpam(ctx context.Context, limit int, pending bool) ([]SpamEn
 	if pending {
 		where = `feedback IS NULL`
 	}
-	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT id, COALESCE(user_id, 0), kind, payload_json, akismet_result, COALESCE(feedback, ''), created_at FROM spam_log WHERE `+where+` ORDER BY id DESC LIMIT ?`, clampLimit(limit))
+	rows, err := s.DB.Reader.QueryContext(ctx, `SELECT id, COALESCE(user_id, 0), kind, payload_json, akismet_result, COALESCE(feedback, ''), created_at FROM spam_log WHERE `+where+` ORDER BY id DESC LIMIT ?`, ClampLimit(limit))
 	if err != nil {
 		return nil, err
 	}
@@ -949,8 +955,28 @@ func (s *Store) GetSpam(ctx context.Context, id int64) (*SpamEntry, error) {
 	return &e, nil
 }
 
-// SetSpamFeedback records that an entry was reported back to Akismet.
-func (s *Store) SetSpamFeedback(ctx context.Context, id int64, feedback string) error {
-	_, err := s.DB.Writer.ExecContext(ctx, `UPDATE spam_log SET feedback = ? WHERE id = ?`, feedback, id)
+// ClaimSpamFeedback records feedback on an entry that has none yet, so that
+// of several machines reviewing the same entry exactly one goes on to train
+// Akismet: the others get ErrAlreadyResolved (ErrNotFound for no such
+// entry). ClearSpamFeedback undoes a claim whose training failed.
+func (s *Store) ClaimSpamFeedback(ctx context.Context, id int64, feedback string) error {
+	res, err := s.DB.Writer.ExecContext(ctx, `UPDATE spam_log SET feedback = ? WHERE id = ? AND (feedback IS NULL OR feedback = '')`, feedback, id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		return nil
+	}
+	e, err := s.GetSpam(ctx, id)
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("%w: spam log entry %d already has feedback %q", ErrAlreadyResolved, id, e.Feedback)
+}
+
+// ClearSpamFeedback removes the feedback claimed on an entry, when it could
+// not be sent to Akismet, so the entry is pending again.
+func (s *Store) ClearSpamFeedback(ctx context.Context, id int64, feedback string) error {
+	_, err := s.DB.Writer.ExecContext(ctx, `UPDATE spam_log SET feedback = NULL WHERE id = ? AND feedback = ?`, id, feedback)
 	return err
 }

@@ -262,7 +262,7 @@ func TestSpamPendingAndUserActivity(t *testing.T) {
 	}
 	st.LogSpam(ctx, author.ID, "report", `{"fields":{"description":"first"}}`, "spam")
 	st.LogSpam(ctx, author.ID, "comment", `{"fields":{"body":"second"}}`, "discard")
-	st.SetSpamFeedback(ctx, 1, "spam")
+	st.ClaimSpamFeedback(ctx, 1, "spam")
 	h := (&Server{Store: st, Log: slog.New(slog.NewTextHandler(io.Discard, nil))}).Handler()
 
 	if _, body := get(h, "/internal/spam-log?pending=1"); strings.Contains(body, "first") || !strings.Contains(body, "second") {
