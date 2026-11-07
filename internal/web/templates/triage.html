@@ -9,8 +9,8 @@
   <h2>The triage pipeline</h2>
   <p>Reports move through the stages below. Boxes on the left are the main path; the branches to the right are where a report leaves it. The pill in each box is the status you will see on the report.</p>
   <figure class="flow">
-    <svg viewBox="0 0 760 912" role="img" aria-labelledby="flow-title" xmlns="http://www.w3.org/2000/svg">
-      <title id="flow-title">Auto-Triage pipeline: a report is queued, picked up by a test machine, reproduced, fixed across the driver stack, validated, proposed as pull requests, and shipped in an update. Side branches: needs clarification, cannot reproduce, not to fix.</title>
+    <svg viewBox="0 0 760 1126" role="img" aria-labelledby="flow-title" xmlns="http://www.w3.org/2000/svg">
+      <title id="flow-title">Auto-Triage pipeline: a report is queued, picked up by a test machine, reproduced, fixed across the driver stack, validated, checked by an independent agent (a failed check sends it back to the triage agent), proposed as pull requests, and shipped in an update. Side branches: needs clarification, cannot reproduce, not to fix; these outcomes go through the same check before they are posted.</title>
       <defs>
         <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="flow-arrowhead"/></marker>
       </defs>
@@ -91,23 +91,48 @@
       <g class="flow-node">
         <rect x="90" y="634" width="320" height="72" rx="14"/>
         <text x="250" y="658" class="flow-label">Validate the fix</text>
-        <text x="250" y="677" class="flow-sub">regression tests, benchmarks and a code review</text>
+        <text x="250" y="677" class="flow-sub">full test matrix, benchmarks and a code review</text>
         <g transform="translate(200 684)"><rect width="100" height="18" rx="9" class="pill pill-blue"/><text x="50" y="13" class="pill-text">In progress</text></g>
       </g>
       <line x1="250" y1="706" x2="250" y2="740" class="flow-edge" marker-end="url(#arrow)"/>
 
-      <g class="flow-node flow-success">
+      <g class="flow-node">
         <rect x="90" y="740" width="320" height="72" rx="14"/>
-        <text x="250" y="764" class="flow-label">Pull requests opened</text>
-        <text x="250" y="783" class="flow-sub">maintainers review the change</text>
-        <g transform="translate(200 790)"><rect width="100" height="18" rx="9" class="pill pill-green"/><text x="50" y="13" class="pill-text">Fix proposed</text></g>
+        <text x="250" y="764" class="flow-label">Independent result check</text>
+        <text x="250" y="783" class="flow-sub">a second agent checks the result against the evidence</text>
+        <g transform="translate(200 790)"><rect width="100" height="18" rx="9" class="pill pill-blue"/><text x="50" y="13" class="pill-text">In progress</text></g>
       </g>
       <line x1="250" y1="812" x2="250" y2="846" class="flow-edge" marker-end="url(#arrow)"/>
 
+      <g class="flow-decision">
+        <path d="M250 846 L340 882 L250 918 L160 882 Z"/>
+        <text x="250" y="887" class="flow-label">Verified?</text>
+      </g>
+      <text x="262" y="942" class="flow-edge-label">yes</text>
+      <line x1="250" y1="918" x2="250" y2="954" class="flow-edge" marker-end="url(#arrow)"/>
+      <text x="112" y="874" class="flow-edge-label">no</text>
+      <path d="M160 882 H60 V456 H88" class="flow-edge flow-edge-loop" marker-end="url(#arrow)"/>
+
+      <!-- note: the side branches are checked too -->
+      <g class="flow-node flow-branch">
+        <rect x="440" y="740" width="300" height="72" rx="14"/>
+        <text x="590" y="764" class="flow-label">Every outcome is checked</text>
+        <text x="590" y="783" class="flow-sub">the outcomes on this side too are verified</text>
+        <text x="590" y="800" class="flow-sub">before the comment and status are posted</text>
+      </g>
+
+      <g class="flow-node flow-success">
+        <rect x="90" y="954" width="320" height="72" rx="14"/>
+        <text x="250" y="978" class="flow-label">Pull requests opened</text>
+        <text x="250" y="997" class="flow-sub">maintainers review the change</text>
+        <g transform="translate(200 1004)"><rect width="100" height="18" rx="9" class="pill pill-green"/><text x="50" y="13" class="pill-text">Fix proposed</text></g>
+      </g>
+      <line x1="250" y1="1026" x2="250" y2="1060" class="flow-edge" marker-end="url(#arrow)"/>
+
       <g class="flow-node flow-ship">
-        <rect x="90" y="846" width="320" height="56" rx="14"/>
-        <text x="250" y="870" class="flow-label">Shipped</text>
-        <text x="250" y="889" class="flow-sub">in a future UTM release or driver update</text>
+        <rect x="90" y="1060" width="320" height="56" rx="14"/>
+        <text x="250" y="1084" class="flow-label">Shipped</text>
+        <text x="250" y="1103" class="flow-sub">in a future UTM release or driver update</text>
       </g>
     </svg>
   </figure>
@@ -121,18 +146,22 @@
   <p>The agent installs the game on the machine, sets up UTM to match the configuration in your report as closely as it can, and follows your steps to reproduce. This is where a precise report pays off: the UTM version, guest OS, graphics backend, and concrete steps all narrow the search. Private attachments such as logs and recordings are read at this stage too.</p>
 
   <h3>3. When it cannot reproduce <span class="triage-status triage-yellow">Needs clarification</span> <span class="triage-status triage-gray">Cannot reproduce</span></h3>
-  <p>If the problem does not show up, the agent leaves a comment on the report asking for whatever is missing: a setting it could not infer, a save file, a clearer sequence of steps. The report is marked <em>Needs clarification</em> and goes back into the queue as soon as you reply. If the problem still cannot be triggered after the extra information, or there is nothing more to ask, the report is marked <em>Cannot reproduce</em>. A new report with different details can start the process again.</p>
+  <p>If the problem does not show up, the agent leaves a comment on the report asking for whatever is missing: a setting it could not infer, a save file, a clearer sequence of steps. The report is marked <em>Needs clarification</em> and goes back into the queue as soon as you reply. If the problem still cannot be triggered after the extra information, or there is nothing more to ask, the report is marked <em>Cannot reproduce</em>. Either way, the comment and status are only posted after the independent check in step 6 confirms that the problem was really looked for, at your settings and in the place you describe. A new report with different details can start the process again.</p>
 
   <h3>4. The agent works on a fix <span class="triage-status triage-blue">In progress</span></h3>
-  <p>Once the issue reproduces reliably, the agent looks for the cause anywhere in the stack that UTM controls: the guest drivers, the host side, the hypervisor, and the graphics translation layers in between. Some problems turn out to be outside that reach, for example a limit of the hardware itself, or is a known architectural issue. In that case the agent explains why and marks the report <span class="triage-status triage-red">Not to fix</span>.</p>
+  <p>Once the issue reproduces reliably, the agent looks for the cause anywhere in the stack that UTM controls: the guest drivers, the host side, the hypervisor, and the graphics translation layers in between. It compares against the same game in CrossOver to decide which layer is at fault. One report can hide several layered bugs, and fixing the first crash does not finish it: the agent keeps a list of every symptom you describe and keeps working until each one is fixed, or shown to be outside UTM's control. Where a fix needs a design choice, the agent makes it against the documentation and the evidence and explains it, rather than leaving the question to a maintainer. Some problems turn out to be outside that reach, for example a limit of the hardware itself, or is a known architectural issue. In that case the agent explains why and marks the report <span class="triage-status triage-red">Not to fix</span>.</p>
 
   <h3>5. The fix is validated <span class="triage-status triage-blue">In progress</span></h3>
-  <p>A fix that makes one game work is not enough on its own. The agent reruns the reproduction, runs the regression test suites for the components it touched, benchmarks for performance changes, and a code review to find similar issues elsewhere. If any of that fails, it goes back to step 4.</p>
+  <p>A fix that makes one game work is not enough on its own. The agent reruns your steps with every fix applied and checks that each symptom is gone, writes a small test that fails before the fix and passes after where one can show the bug, runs the full regression test matrix on both graphics backends, benchmarks the change against the current build, and runs a code review to find similar issues elsewhere. If any of that fails, it goes back to step 4.</p>
 
-  <h3>6. Pull requests for human review <span class="triage-status triage-green">Fix proposed</span></h3>
-  <p>When validation passes, the report is marked <em>Fix proposed</em> and the agent opens pull requests against the relevant repositories. Maintainers review them and may make follow-up requests and changes. Nothing the agent writes reaches a release without a human accepting it.</p>
+  <h3>6. An independent check <span class="triage-status triage-blue">In progress</span></h3>
+  <p>When the agent believes it is done, its drafted comment and status go to a second, independent agent with a fresh context whose job is to check the report. The checker makes its own list of the symptoms in your report and compares it with the draft and with the evidence the triage left behind: the test runs, screenshots, benchmark results, the fix commits and whether the branches are published. It confirms that every claim in the comment is backed by that evidence, that no symptom you reported is left open, that every validation step was actually run, and that the comment contains no personal data.</p>
+  <p>If the check passes, the comment and status are posted to your report. If it fails, the report goes back to the same triage agent, with everything it had learned so far, together with a list of what is missing, and the agent continues the work from step 4. The triage agent may overrule a finding when its own evidence shows the finding is wrong, and after three rounds its result is posted as is, so a disagreement cannot hold up a report forever.</p>
 
-  <h3>7. Shipped</h3>
+  <h3>7. Pull requests for human review <span class="triage-status triage-green">Fix proposed</span></h3>
+  <p>When the check passes, the report is marked <em>Fix proposed</em> and the agent opens pull requests against the relevant repositories. Maintainers review them and may send them back for more changes. In that case the agent picks the report up again and, once the new work has passed the check, posts a follow-up comment that says why the work continued and what changed; earlier comments stay on the report. Nothing the agent writes reaches a release without a human accepting it.</p>
+
+  <h3>8. Shipped</h3>
   <p>Accepted fixes are distributed in a future UTM update or, for driver changes, in a driver update. Once you have updated, a fresh report on the new version is the best way to confirm the fix and to move the game's status.</p>
 
   <h2>Helping the agent help you</h2>

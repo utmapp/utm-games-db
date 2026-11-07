@@ -222,7 +222,7 @@ func (s *Server) handlePrivacy(w http.ResponseWriter, r *http.Request) {
 
 // handleTriageDoc explains the Auto-Triage pipeline.
 func (s *Server) handleTriageDoc(w http.ResponseWriter, r *http.Request) {
-	s.public(w, r, "triage", 86400, &aboutPage{Page: Page{Title: "How Auto-Triage works", Description: "How UTM's Auto-Triage agent reproduces, fixes and validates reported game issues.", Canonical: s.Cfg.AbsURL("/triage")}})
+	s.public(w, r, "triage", 86400, &aboutPage{Page: Page{Title: "How Auto-Triage works", Description: "How UTM's Auto-Triage agent reproduces, fixes and validates reported game issues, and how an independent check verifies each result.", Canonical: s.Cfg.AbsURL("/triage")}})
 }
 
 func (s *Server) handleAbout(w http.ResponseWriter, r *http.Request) {
